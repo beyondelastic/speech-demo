@@ -47,16 +47,15 @@
     "/api/open-browser": {
       "get": {
         "summary": "Open Browser Endpoint",
-        "description": "Endpoint that opens a browser window when called by an LLM/agent.\n\nQuery parameters:\n- url: The URL to open in the browser (defaults to http://localhost:8000)",
+        "description": "Endpoint that opens a browser window when called by an LLM/agent.\n\nQuery parameters:\n- url: The URL to open in the browser (required)",
         "operationId": "open_browser_endpoint_api_open_browser_get",
         "parameters": [
           {
             "name": "url",
             "in": "query",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string",
-              "default": "https://www.karlstorz.com/",
               "title": "Url"
             }
           }

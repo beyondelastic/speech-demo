@@ -48,13 +48,10 @@ Health check endpoint to verify the server is running.
 Opens a URL in the local default browser.
 
 **Query Parameters**:
-- `url` (optional, default: `http://localhost:8000`): The URL to open in the browser
+- `url` (required, string): The URL to open in the browser
 
 **Example Requests**:
 ```bash
-# Open the default server URL
-http://localhost:8000/api/open-browser
-
 # Open a specific URL
 http://localhost:8000/api/open-browser?url=https://www.example.com
 
@@ -203,7 +200,7 @@ In your agent's tool definitions, reference the OpenAPI schema:
 2. **Endpoint**: `http://localhost:8000/api/open-browser`
 3. **Method**: GET
 4. **Parameters**:
-   - `url` (string, optional): The URL to open
+   - `url` (string, required): The URL to open in the browser
 
 ### Example Agent Configuration
 
@@ -218,8 +215,7 @@ In your agent's tool definitions, you would configure something like:
     "url": {
       "type": "string",
       "description": "The URL to open in the browser",
-      "required": false,
-      "default": "http://localhost:8000"
+      "required": true
     }
   }
 }
@@ -229,9 +225,22 @@ In your agent's tool definitions, you would configure something like:
 
 Once integrated with your Microsoft Foundry voice agent, you could use voice commands like:
 
-- "Open the local browser"
+- "Open Google"
+- "Open https://www.example.com"
+- "Open the local dashboard"
+- "Navigate to the admin panel"
 
 The agent will interpret these commands and call the `/api/open-browser` endpoint with the appropriate URL.
+
+## Agent System Prompt
+
+This project includes `AGENT_SYSTEM_PROMPT.md` which contains guidance for configuring your Microsoft Foundry voice agent. The prompt includes:
+
+- How the agent should handle browser open requests
+- When to ask for clarification (e.g., if user says "open my browser" without specifying a URL)
+- Example interactions and use cases
+
+Use this prompt when setting up your voice agent to ensure consistent and correct behavior.
 
 ## Troubleshooting
 
@@ -276,9 +285,11 @@ curl http://localhost:8000/api/health
 
 ```
 speech-demo/
-├── main.py              # FastAPI application
-├── requirements.txt     # Python dependencies
-└── README.md           # This file
+├── main.py                      # FastAPI application
+├── requirements.txt             # Python dependencies
+├── openapi.json                 # OpenAPI schema for Foundry agent tool configuration
+├── AGENT_SYSTEM_PROMPT.md       # System prompt for the voice agent
+└── README.md                    # This file
 ```
 
 ## Dependencies

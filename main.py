@@ -62,12 +62,12 @@ async def health_check():
 
 
 @app.get("/api/open-browser")
-async def open_browser_endpoint(url: str = "https://www.karlstorz.com/"):
+async def open_browser_endpoint(url: str):
     """
     Endpoint that opens a browser window when called by an LLM/agent.
     
     Query parameters:
-    - url: The URL to open in the browser (defaults to https://www.karlstorz.com/)
+    - url: The URL to open in the browser (required)
     """
     try:
         # Try to open browser in a subprocess with error handling
