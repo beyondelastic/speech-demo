@@ -1,0 +1,12 @@
+# Voice requirements
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+azure-cognitiveservices-speech==1.41.1
+azure-identity==1.19.0
+python-dotenv==1.0.1
+pydub==0.25.1
+
+# Agent framework - install without extras to avoid dependency hell
+agent-framework-azure-ai
+pydantic>=2.0.0,<3.0.0
