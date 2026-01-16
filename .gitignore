@@ -16,3 +16,13 @@ temp_*
 .vscode/
 .DS_Store
 .venv
+
+# Node.js artifacts (from npx playwright)
+node_modules/
+package-lock.json
+package.json
+
+# Playwright artifacts
+test-results/
+playwright-report/
+.last-run.json

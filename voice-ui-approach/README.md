@@ -109,11 +109,25 @@ This approach provides a complete voice-to-browser-automation pipeline:
 
 ### 1. Start the Playwright MCP Server
 
-The agent requires the Playwright MCP server for browser automation:
+The agent requires the Playwright MCP server for browser automation.
 
+**First-time setup (if running in WSL):**
 ```bash
-npx @playwright/mcp@latest --port 8931 --host 0.0.0.0
+# Install Chromium browser
+npx playwright install chromium
+
+# Install system dependencies for browser to run in WSL
+npx playwright install-deps chromium
 ```
+
+**Start the MCP server:**
+```bash
+npx @playwright/mcp@latest --port 8931 --host 0.0.0.0 --browser chromium --shared-browser-context
+```
+
+**Important flags:**
+- `--browser chromium`: Specifies which browser to use (chromium, firefox, webkit, msedge)
+- `--shared-browser-context`: Keeps the browser window open and reuses the same context between agent requests
 
 Keep this terminal running. The server listens on port 8931.
 
@@ -183,7 +197,7 @@ For a full working setup, you need these running simultaneously:
 
 - [ ] **Terminal 1**: Playwright MCP Server
   ```bash
-  npx @playwright/mcp@latest --port 8931 --host 0.0.0.0
+  npx @playwright/mcp@latest --port 8931 --host 0.0.0.0 --browser chromium --shared-browser-context
   ```
 
 - [ ] **Terminal 2**: Dev Tunnel (for MCP server)
