@@ -309,11 +309,31 @@ if __name__ == "__main__":
     print(f"[OR Lights] Transport: Streamable HTTP on /sse")
 
     import uvicorn
+    import anyio
+    from starlette.routing import Route
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse
 
     # Use FastMCP's built-in Streamable HTTP app.
     # streamable_http_path="/sse" means the endpoint is POST /sse,
     # which is what Foundry tries first (eliminating 405 fallback to SSE).
     starlette_app = mcp.streamable_http_app()
+
+    # Add a plain REST endpoint so the frontend can poll light state directly
+    # without going through the FastAPI backend.
+    async def get_state(request: Request) -> JSONResponse:
+        result = {}
+        for light_id, state in light_state.items():
+            result[light_id] = {
+                "name": state["name"],
+                "zone": state["zone"],
+                "power": "ON" if state["power"] else "OFF",
+                "brightness": state["brightness"],
+                "color_temp_kelvin": state["color_temp"]
+            }
+        return JSONResponse(result, headers={"Access-Control-Allow-Origin": "*"})
+
+    starlette_app.routes.append(Route("/api/state", endpoint=get_state, methods=["GET"]))
 
     config = uvicorn.Config(
         starlette_app,

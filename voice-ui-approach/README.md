@@ -138,7 +138,7 @@ If you prefer to start services individually:
 python or_lights_mcp.py --port 8932
 ```
 
-This server exposes lighting control tools via SSE transport. It persists light state to `.or_lights_state.json`.
+This server exposes lighting control tools via Streamable HTTP transport. It persists light state to `.or_lights_state.json`.
 
 ### 2. Start the Playwright MCP Server
 
@@ -319,7 +319,7 @@ The backend automatically:
 | `/api/speech-to-text` | POST | Convert audio to text |
 | `/api/agent/chat` | POST | Send message to agent |
 | `/api/text-to-speech` | POST | Convert text to audio |
-| `/api/lights/state` | GET | Get current OR light states |
+| `/api/config` | GET | Get default configuration |
 | `/api/agent/thread/{id}` | DELETE | Clear conversation |
 | `/health` | GET | Health check |
 
@@ -328,7 +328,7 @@ The backend automatically:
 ```
 voice-ui-approach/
 ├── main.py                  # FastAPI backend (speech, agent, light state API)
-├── or_lights_mcp.py         # OR Lights MCP server (SSE transport)
+├── or_lights_mcp.py         # OR Lights MCP server (Streamable HTTP transport)
 ├── index.html               # Web interface (chat + OR light panel)
 ├── app.js                   # Frontend JavaScript (voice + light visualization)
 ├── start.sh                 # Auto-start script for all services
@@ -336,6 +336,11 @@ voice-ui-approach/
 ├── AGENT_SYSTEM_PROMPT.md   # Foundry agent system prompt
 ├── .env.example             # Environment template
 ├── .or_lights_state.json    # Light state (auto-generated, gitignored)
+├── deploy.sh                # Azure Container Apps deployment script
+├── Dockerfile               # Container image definition
+├── .dockerignore             # Files excluded from Docker build
+├── infra/
+│   └── main.bicep           # Azure infrastructure (Bicep)
 ├── utils/                   # Utility scripts
 │   ├── check_old_api_agents.py
 │   └── list_agents.py
@@ -347,7 +352,7 @@ voice-ui-approach/
 ### Agent Reference
 Agents are referenced by **name** (not ID) in the new Foundry API:
 ```python
-extra_body={"agent": {"name": "playwright-agent", "type": "agent_reference"}}
+extra_body={"agent_reference": {"name": "playwright-agent", "type": "agent_reference"}}
 ```
 
 ### Conversation State
@@ -380,7 +385,7 @@ The system uses a cascading configuration priority:
 ### Lights not updating in UI
 - Verify OR Lights MCP server is running on port 8932
 - Check `.or_lights_state.json` exists and is being updated
-- Open browser console and check for polling errors on `/api/lights/state`
+- Open browser console and check for polling errors on `http://localhost:8932/api/state`
 
 ### Browser doesn't open
 - Verify Playwright MCP server is running on port 8931
@@ -399,6 +404,66 @@ The application logs to console with prefixes:
 
 ### Testing Without Voice
 You can test the agent interaction by modifying `app.js` to bypass speech recognition and send text directly to the `/api/agent/chat` endpoint.
+
+## Azure Container Apps Deployment
+
+The backend can be deployed to Azure Container Apps for lower latency and reliable hosting. The local MCP servers still run on your machine (connected via dev tunnel).
+
+### Prerequisites
+
+- Azure CLI logged in (`az login`)
+- `.env` file in the repo root with `PROJECT_ENDPOINT`, `SPEECH_KEY`, `SPEECH_REGION`, `AGENT_ID`
+
+### One-Command Deploy
+
+```bash
+./deploy.sh
+```
+
+This deploys all infrastructure (ACR, Container Apps Environment, Container App) via Bicep, builds the Docker image, and grants the managed identity the required role.
+
+Options:
+```bash
+./deploy.sh --resource-group myRg    # Custom resource group (default: rg-or-assistant)
+./deploy.sh --location westeurope    # Custom location (default: swedencentral)
+./deploy.sh --app-name myapp         # Custom app name prefix (default: or-assistant)
+```
+
+### What Gets Deployed
+
+| Resource | Purpose |
+|----------|---------|
+| Azure Container Registry | Stores the backend Docker image |
+| Log Analytics Workspace | Container App logging |
+| Container Apps Environment | Hosting environment |
+| Container App | FastAPI backend with managed identity |
+
+The container app gets a system-assigned managed identity with the **Cognitive Services User** role on your AI Services resource.
+
+### Running with Cloud Backend
+
+After deployment, start only the local MCP servers:
+
+```bash
+./start.sh --local-only
+```
+
+Then open the container app URL shown in the deployment output.
+
+### Redeploying
+
+Run `./deploy.sh` again — it will build a new image and update the container app. Existing infrastructure is reused.
+
+### Infrastructure Files
+
+```
+voice-ui-approach/
+├── deploy.sh              # Deployment script
+├── Dockerfile             # Container image definition
+├── .dockerignore          # Files excluded from image
+└── infra/
+    └── main.bicep         # Azure infrastructure (Bicep)
+```
 
 ## License
 

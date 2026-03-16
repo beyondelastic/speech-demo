@@ -227,6 +227,12 @@ class TextToSpeechRequest(BaseModel):
     speechRegion: Optional[str] = None
 
 
+@app.get("/api/config")
+async def get_config():
+    """Return default configuration (agent ID from environment)."""
+    return {"agentId": os.getenv("AGENT_ID", "")}
+
+
 @app.get("/")
 async def read_root():
     """Serve the main HTML page"""
@@ -529,7 +535,7 @@ async def speech_stream_websocket(websocket: WebSocket):
                         while True:
                             # Build request
                             kwargs = {
-                                "extra_body": {"agent": {"name": agent_id, "type": "agent_reference"}},
+                                "extra_body": {"agent_reference": {"name": agent_id, "type": "agent_reference"}},
                                 "input": call_input,
                                 "stream": True,
                             }
@@ -807,13 +813,13 @@ async def chat_with_agent(request: ChatRequest):
             if thread_key in last_response_ids:
                 response = await openai_client.responses.create(
                     previous_response_id=last_response_ids[thread_key],
-                    extra_body={"agent": {"name": request.agentId, "type": "agent_reference"}},
+                    extra_body={"agent_reference": {"name": request.agentId, "type": "agent_reference"}},
                     input=request.message
                 )
             else:
                 response = await openai_client.responses.create(
                     conversation=conversation_id,
-                    extra_body={"agent": {"name": request.agentId, "type": "agent_reference"}},
+                    extra_body={"agent_reference": {"name": request.agentId, "type": "agent_reference"}},
                     input=request.message
                 )
             
@@ -840,7 +846,7 @@ async def chat_with_agent(request: ChatRequest):
                 } for approval in approval_requests]
                 
                 response = await openai_client.responses.create(
-                    extra_body={"agent": {"name": request.agentId, "type": "agent_reference"}},
+                    extra_body={"agent_reference": {"name": request.agentId, "type": "agent_reference"}},
                     previous_response_id=response.id,
                     input=approval_inputs
                 )
@@ -941,22 +947,6 @@ async def clear_thread(thread_id: str):
 async def health():
     """Health check endpoint"""
     return {"status": "ok"}
-
-
-# --- OR Light State ---
-# Read shared light state written by the OR Lights MCP server
-
-OR_LIGHTS_STATE_FILE = Path(__file__).parent / ".or_lights_state.json"
-
-@app.get("/api/lights/state")
-async def get_light_state():
-    """Get current light state from the shared state file."""
-    try:
-        if OR_LIGHTS_STATE_FILE.exists():
-            return json.loads(OR_LIGHTS_STATE_FILE.read_text())
-        return {}
-    except Exception:
-        return {}
 
 
 if __name__ == "__main__":

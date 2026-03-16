@@ -36,11 +36,27 @@ class VoiceAgentInterface {
         });
     }
 
-    loadConfiguration() {
+    async loadConfiguration() {
         // Load from localStorage
         this.agentIdInput.value = localStorage.getItem('agentId') || '';
         this.speechKeyInput.value = localStorage.getItem('speechKey') || '';
         this.speechRegionInput.value = localStorage.getItem('speechRegion') || '';
+
+        // If agent ID is empty, fetch default from backend
+        if (!this.agentIdInput.value) {
+            try {
+                const resp = await fetch('/api/config');
+                if (resp.ok) {
+                    const config = await resp.json();
+                    if (config.agentId) {
+                        this.agentIdInput.value = config.agentId;
+                        this.saveConfiguration();
+                    }
+                }
+            } catch (e) {
+                // Ignore - user can enter manually
+            }
+        }
     }
 
     saveConfiguration() {
@@ -648,7 +664,8 @@ class ORLightPanel {
 
     async fetchState() {
         try {
-            const response = await fetch('/api/lights/state');
+            // Poll the OR Lights MCP server directly (runs locally on port 8932)
+            const response = await fetch('http://localhost:8932/api/state');
             if (response.ok) {
                 const state = await response.json();
                 if (Object.keys(state).length > 0) {

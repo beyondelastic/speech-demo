@@ -1,7 +1,11 @@
 #!/bin/bash
 # =============================================================================
-# Start Script for Voice UI Demo
-# Starts: Playwright MCP Server, Dev Tunnel, and FastAPI Backend
+# Start Script for Voice UI Demo (Local Development)
+# Starts: OR Lights MCP, Playwright MCP, Dev Tunnel, and FastAPI Backend
+#
+# For cloud deployment, the FastAPI backend runs on Azure Container Apps.
+# In that case, only run this script with --local-only to start MCP servers
+# and dev tunnel (skip step 4).
 # =============================================================================
 
 set -e
@@ -21,6 +25,12 @@ TUNNEL_NAME="playwright-mcp-tunnel"
 MCP_PORT=8931
 OR_LIGHTS_PORT=8932
 FASTAPI_PORT=8000
+
+# Parse --local-only flag (skip FastAPI when backend is in Azure)
+LOCAL_ONLY=false
+if [[ "$1" == "--local-only" ]]; then
+    LOCAL_ONLY=true
+fi
 
 # Track background PIDs for cleanup
 PIDS=()
@@ -122,19 +132,25 @@ if ! kill -0 "${PIDS[-1]}" 2>/dev/null; then
 fi
 echo -e "${GREEN}[3/4] Dev Tunnel running (PID ${PIDS[-1]}).${NC}"
 
-# --- 4. Start FastAPI Server ---
-echo -e "${CYAN}[4/4] Starting FastAPI server on port ${FASTAPI_PORT}...${NC}"
-cd "$SCRIPT_DIR"
-"$PYTHON_CMD" main.py &
-PIDS+=($!)
-sleep 2
+# --- 4. Start FastAPI Server (skip if --local-only) ---
+if [[ "$LOCAL_ONLY" == true ]]; then
+    echo -e "${YELLOW}[4/4] Skipping FastAPI server (--local-only mode, backend runs in Azure).${NC}"
+    TOTAL_STEPS=3
+else
+    echo -e "${CYAN}[4/4] Starting FastAPI server on port ${FASTAPI_PORT}...${NC}"
+    cd "$SCRIPT_DIR"
+    "$PYTHON_CMD" main.py &
+    PIDS+=($!)
+    sleep 2
 
-if ! kill -0 "${PIDS[-1]}" 2>/dev/null; then
-    echo -e "${RED}[Error] FastAPI server failed to start.${NC}"
-    cleanup
-    exit 1
+    if ! kill -0 "${PIDS[-1]}" 2>/dev/null; then
+        echo -e "${RED}[Error] FastAPI server failed to start.${NC}"
+        cleanup
+        exit 1
+    fi
+    echo -e "${GREEN}[4/4] FastAPI server running (PID ${PIDS[-1]}).${NC}"
+    TOTAL_STEPS=4
 fi
-echo -e "${GREEN}[4/4] FastAPI server running (PID ${PIDS[-1]}).${NC}"
 
 # --- Ready ---
 echo ""
@@ -144,7 +160,14 @@ echo -e "${GREEN}=============================================${NC}"
 echo -e "  OR Lights MCP   : http://localhost:${OR_LIGHTS_PORT}"
 echo -e "  Playwright MCP  : http://localhost:${MCP_PORT}"
 echo -e "  Dev Tunnel      : devtunnel host ${TUNNEL_NAME}"
-echo -e "  FastAPI UI      : http://localhost:${FASTAPI_PORT}"
+if [[ "$LOCAL_ONLY" == true ]]; then
+    echo -e "  FastAPI Backend  : ${YELLOW}Running in Azure Container Apps${NC}"
+    echo -e ""
+    echo -e "  ${CYAN}MCP servers and tunnel are running locally.${NC}"
+    echo -e "  ${CYAN}Open the Azure Container Apps URL in your browser.${NC}"
+else
+    echo -e "  FastAPI UI      : http://localhost:${FASTAPI_PORT}"
+fi
 echo -e ""
 echo -e "${YELLOW}  Press Ctrl+C to stop all services.${NC}"
 echo -e "${GREEN}=============================================${NC}"

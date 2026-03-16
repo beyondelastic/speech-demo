@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.or_lights_state.json
+or_lights_mcp.py
+start.sh
+architecture.drawio
+utils/
+*.backup.md
+AGENT_SYSTEM_PROMPT.md
