@@ -156,31 +156,29 @@ class VoiceAgentInterface {
                         break;
                     
                     case 'agent_response_complete':
-                        // Agent finished responding
+                        // Agent finished responding - show text immediately
                         this.finalizeAgentResponse(message.full_text);
+                        // If audio is already included (legacy), play it now
+                        if (message.audio) {
+                            this.updateStatus('Agent speaking...', true);
+                            this.playAudioBase64(message.audio).then(() => {
+                                console.log('[TTS] Finished speaking');
+                            }).catch(err => {
+                                console.error('[TTS] Error:', err);
+                            });
+                        }
+                        break;
+                    
+                    case 'tts_audio':
+                        // TTS audio arrived asynchronously - queue it
                         this.updateStatus('Agent speaking...', true);
-                        // Convert to speech
-                        this.textToSpeech(message.full_text).then(() => {
-                            // TTS finished, wait for ready_for_next
-                            console.log('[TTS] Finished speaking');
-                        }).catch(err => {
-                            console.error('[TTS] Error:', err);
-                            this.updateStatus('Ready', false);
-                        });
+                        this.queueAudio(message.audio);
                         break;
                     
                     case 'ready_for_next':
-                        // Server is ready, reconnect for next conversation turn
-                        console.log('[WebSocket] Ready for next input, reconnecting...');
-                        this.stopStreamingRecognition();
-                        this.updateStatus('Restarting...', true);
-                        // Give a moment for TTS to finish, then restart
-                        setTimeout(() => {
-                            if (!this.isRecording) {
-                                console.log('[WebSocket] Reconnecting for next turn');
-                                this.startRecording();
-                            }
-                        }, 1000);  // Increased delay to ensure TTS finishes
+                        // Server has restarted recognition on the same connection
+                        console.log('[WebSocket] Ready for next input');
+                        this.updateStatus('Listening...', true);
                         break;
                     
                     case 'session_stopped':
@@ -278,13 +276,11 @@ class VoiceAgentInterface {
     }
     
     stopStreamingRecognition() {
-        // Cleanup WebSocket
-        if (this.websocket) {
-            if (this.websocket.readyState === WebSocket.OPEN) {
-                this.websocket.send(JSON.stringify({ type: 'stop' }));
-            }
-            this.websocket.close();
-            this.websocket = null;
+        // Cleanup WebSocket — send stop but don't close yet;
+        // the server will send remaining tts_audio then ready_for_next.
+        // The WS stays open for reuse, user clicks mic again to start.
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            this.websocket.send(JSON.stringify({ type: 'stop' }));
         }
         
         // Cleanup audio processing
@@ -501,6 +497,45 @@ class VoiceAgentInterface {
         });
     }
 
+    async playAudioBase64(base64Data) {
+        const binaryStr = atob(base64Data);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'audio/ogg' });
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+
+        return new Promise((resolve, reject) => {
+            audio.onended = () => { URL.revokeObjectURL(audioUrl); resolve(); };
+            audio.onerror = (e) => { URL.revokeObjectURL(audioUrl); reject(e); };
+            audio.play();
+        });
+    }
+
+    queueAudio(base64Data) {
+        if (!this._audioQueue) this._audioQueue = [];
+        this._audioQueue.push(base64Data);
+        if (!this._audioPlaying) this._playNextAudio();
+    }
+
+    async _playNextAudio() {
+        if (!this._audioQueue || this._audioQueue.length === 0) {
+            this._audioPlaying = false;
+            return;
+        }
+        this._audioPlaying = true;
+        const data = this._audioQueue.shift();
+        try {
+            await this.playAudioBase64(data);
+            console.log('[TTS] Finished speaking segment');
+        } catch (err) {
+            console.error('[TTS] Error:', err);
+        }
+        this._playNextAudio();
+    }
+
     addMessage(sender, text) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}`;
@@ -608,7 +643,7 @@ class ORLightPanel {
 
     startPolling() {
         this.fetchState();
-        this.pollInterval = setInterval(() => this.fetchState(), 1000);
+        this.pollInterval = setInterval(() => this.fetchState(), 3000);
     }
 
     async fetchState() {

@@ -46,7 +46,7 @@ Both are powered by a single Foundry agent that receives voice input and decides
          │    • STT / TTS       │
          │                      │
          └──> Foundry Agent (cloud)
-              • GPT-4o model
+              • GPT-4.1-mini model
               • Auto-approves MCP tool calls
               │
               ├──────────────────────────────┐
@@ -64,7 +64,7 @@ Both are powered by a single Foundry agent that receives voice input and decides
 ### Azure Resources
 
 1. **Microsoft Foundry Project** with:
-   - An agent configured with gpt-4o model
+   - An agent configured with gpt-4.1-mini model
    - Playwright MCP server enabled
    - Multi-service AI account (includes Speech Services)
 

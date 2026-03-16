@@ -69,7 +69,7 @@ speech-demo/
 │
 ├── voice-ui-approach/           # OR voice assistant (recommended)
 │   ├── main.py                  # FastAPI backend (speech, agent, light state)
-│   ├── or_lights_mcp.py         # OR Lights MCP server (SSE transport)
+│   ├── or_lights_mcp.py         # OR Lights MCP server (Streamable HTTP)
 │   ├── index.html               # Web UI (chat + OR light visualization)
 │   ├── app.js                   # Frontend logic
 │   ├── start.sh                 # Auto-start all services

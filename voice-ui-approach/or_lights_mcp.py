@@ -6,7 +6,6 @@ Runs as a Streamable HTTP MCP server on a configurable port.
 """
 
 import json
-import asyncio
 import argparse
 from pathlib import Path
 from typing import Any
@@ -168,7 +167,9 @@ mcp = FastMCP(
         "surgical_main, surgical_secondary, ambient_ceiling, ambient_wall, task_monitor. "
         "Available scene presets: full_surgery, laparoscopy, prep, closing, emergency, standby. "
         "Always confirm actions clearly so the doctor hears verbal feedback."
-    )
+    ),
+    streamable_http_path="/sse",
+    stateless_http=True,
 )
 
 
@@ -305,41 +306,14 @@ if __name__ == "__main__":
     print(f"[OR Lights] Starting MCP server on {args.host}:{args.port}")
     print(f"[OR Lights] Lights: {', '.join(light_state.keys())}")
     print(f"[OR Lights] Scenes: {', '.join(SCENE_PRESETS.keys())}")
+    print(f"[OR Lights] Transport: Streamable HTTP on /sse")
 
-    # Build a custom Starlette app with routes that match Foundry's URL resolution.
-    # Foundry takes the configured URL path (/sse) and prepends it to the
-    # message path the SSE server returns. So if SSE returns "messages/?session_id=...",
-    # Foundry posts to /sse/messages/?session_id=...
-    # We set the SseServerTransport endpoint to "messages/" (relative) so the SSE
-    # stream returns that, and mount the handler at /sse/messages/ where Foundry posts.
     import uvicorn
-    import anyio
-    from starlette.applications import Starlette
-    from starlette.routing import Mount, Route
-    from starlette.requests import Request
-    from starlette.responses import Response
-    from mcp.server.sse import SseServerTransport
 
-    sse_transport = SseServerTransport("messages/")
-
-    async def handle_sse(request: Request) -> Response:
-        async with sse_transport.connect_sse(
-            request.scope, request.receive, request._send
-        ) as streams:
-            await mcp._mcp_server.run(
-                streams[0],
-                streams[1],
-                mcp._mcp_server.create_initialization_options(),
-            )
-        return Response()
-
-    starlette_app = Starlette(
-        debug=False,
-        routes=[
-            Route("/sse", endpoint=handle_sse, methods=["GET"]),
-            Mount("/sse/messages/", app=sse_transport.handle_post_message),
-        ],
-    )
+    # Use FastMCP's built-in Streamable HTTP app.
+    # streamable_http_path="/sse" means the endpoint is POST /sse,
+    # which is what Foundry tries first (eliminating 405 fallback to SSE).
+    starlette_app = mcp.streamable_http_app()
 
     config = uvicorn.Config(
         starlette_app,
@@ -348,4 +322,6 @@ if __name__ == "__main__":
         log_level="info",
     )
     server = uvicorn.Server(config)
+
+    import anyio
     anyio.run(server.serve)

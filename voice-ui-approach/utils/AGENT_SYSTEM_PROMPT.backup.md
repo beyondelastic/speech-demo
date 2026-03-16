@@ -47,6 +47,29 @@ Handle these types of commands:
 - "new tab" / "neuer tab" - Open new tab
 - "switch to tab [number]" - Switch to specific tab
 
+## Handling Common Browser Issues
+
+### Cookie Popups
+When cookie consent popups appear:
+1. Try using `browser_run_code` to execute JavaScript: `document.querySelector('button[contains text "Accept"]').click()`
+2. Alternative selectors to try: `button.accept-cookies`, `#cookie-accept`, `[data-testid="cookie-accept"]`
+3. If standard clicking fails, try JavaScript approach with multiple selector patterns
+4. Look for common button texts: "Accept All", "Alle akzeptieren", "Allow All Cookies", "Alle Cookies zulassen"
+
+### Tab Navigation Issues
+When new tabs open:
+1. Use `browser_tabs` to list all tabs first
+2. Identify the target tab by title or index
+3. Use `browser_tabs` with the specific tab ID to switch
+4. If switching fails, try closing current tab first to auto-focus the new one
+
+### Element Not Clickable
+If clicking fails:
+1. First try taking a snapshot with `browser_snapshot` to verify element visibility
+2. Try scrolling the element into view first
+3. Use JavaScript click as fallback: `document.querySelector('selector').click()`
+4. Check if element is in an iframe and handle accordingly
+
 ## Response Style
 - Be concise and action-oriented
 - Confirm actions you're taking in the USER'S language

@@ -1,0 +1,272 @@
+<mxfile host="app.diagrams.net" modified="2026-03-16T12:00:00.000Z" agent="draw.io" version="24.0.0" type="device">
+  <diagram id="voice-ui-architecture" name="Architecture">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="Voice-Controlled OR Assistant — Architecture" style="text;html=1;fontSize=20;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="350" y="20" width="500" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ========== USER ========== -->
+        <mxCell id="user" value="Surgeon / Staff" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="280" width="40" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ========== BROWSER UI GROUP ========== -->
+        <mxCell id="browser_group" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;dashed=1;dashPattern=5 5;verticalAlign=top;fontStyle=1;fontSize=13;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="180" y="170" width="280" height="310" as="geometry" />
+        </mxCell>
+        <mxCell id="browser_label" value="Browser UI&lt;br&gt;&lt;font style=&quot;font-size:10px;font-weight:normal;&quot;&gt;http://localhost:8000&lt;/font&gt;" style="text;html=1;fontSize=14;fontStyle=1;align=center;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="225" y="175" width="190" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Voice Chat Panel -->
+        <mxCell id="voice_panel" value="Voice Chat Panel&lt;br&gt;&lt;font style=&quot;font-size:10px;font-weight:normal;&quot;&gt;🎙️ Record &amp; transcript&lt;br&gt;(app.js)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="200" y="225" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- OR Light Panel -->
+        <mxCell id="light_panel" value="OR Light Panel&lt;br&gt;&lt;font style=&quot;font-size:10px;font-weight:normal;&quot;&gt;💡 Live visualization&lt;br&gt;(app.js ORLightPanel)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="330" y="225" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- index.html -->
+        <mxCell id="indexhtml" value="index.html&lt;br&gt;&lt;font style=&quot;font-size:10px;font-weight:normal;&quot;&gt;Side-by-side layout&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="245" y="325" width="150" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- MediaRecorder label -->
+        <mxCell id="mediarecorder" value="MediaRecorder API&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;WebM audio capture&lt;/font&gt;" style="text;html=1;fontSize=10;fontStyle=0;align=center;verticalAlign=middle;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="210" y="385" width="120" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- Audio playback label -->
+        <mxCell id="audioplayback" value="Audio playback&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;TTS response&lt;/font&gt;" style="text;html=1;fontSize=10;fontStyle=0;align=center;verticalAlign=middle;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="310" y="385" width="110" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- User to Voice Panel -->
+        <mxCell id="user_to_voice" value="Voice" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeWidth=2;fontSize=10;fontStyle=1;strokeColor=#82b366;" edge="1" parent="1" source="user" target="voice_panel">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ========== FASTAPI SERVER GROUP ========== -->
+        <mxCell id="fastapi_group" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;dashed=1;dashPattern=5 5;verticalAlign=top;fontStyle=1;fontSize=13;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="180" y="490" width="280" height="270" as="geometry" />
+        </mxCell>
+        <mxCell id="fastapi_label" value="FastAPI Server (main.py)&lt;br&gt;&lt;font style=&quot;font-size:10px;font-weight:normal;&quot;&gt;Port 8000&lt;/font&gt;" style="text;html=1;fontSize=14;fontStyle=1;align=center;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="215" y="495" width="210" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- STT -->
+        <mxCell id="stt" value="Speech-to-Text&lt;br&gt;&lt;font style=&quot;font-size:9px;font-weight:normal;&quot;&gt;WebSocket streaming&lt;br&gt;Silence detection&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="195" y="545" width="120" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- TTS -->
+        <mxCell id="tts" value="Text-to-Speech&lt;br&gt;&lt;font style=&quot;font-size:9px;font-weight:normal;&quot;&gt;Auto language detect&lt;br&gt;EN / DE&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="325" y="545" width="120" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Agent Proxy -->
+        <mxCell id="agent_proxy" value="Agent Proxy&lt;br&gt;&lt;font style=&quot;font-size:9px;font-weight:normal;&quot;&gt;/api/agent/chat&lt;br&gt;Auto-approve MCP tools&lt;br&gt;Retry with backoff&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="195" y="620" width="120" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- Light State API -->
+        <mxCell id="light_state_api" value="Light State API&lt;br&gt;&lt;font style=&quot;font-size:9px;font-weight:normal;&quot;&gt;/api/lights/state&lt;br&gt;Reads JSON file&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="325" y="625" width="120" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Shared state file -->
+        <mxCell id="state_file" value=".or_lights_state.json" style="shape=document;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=10;fontStyle=1;size=0.15;" vertex="1" parent="1">
+          <mxGeometry x="340" y="700" width="130" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Browser UI → FastAPI: WebSocket audio -->
+        <mxCell id="ui_to_stt" value="WebSocket&lt;br&gt;audio stream" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.35;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;fontSize=9;strokeColor=#d6b656;" edge="1" parent="1" source="browser_group" target="stt">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- FastAPI → Browser UI: TTS audio -->
+        <mxCell id="tts_to_ui" value="Opus&lt;br&gt;audio" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.7;entryY=1;entryDx=0;entryDy=0;strokeWidth=2;fontSize=9;strokeColor=#d6b656;" edge="1" parent="1" source="tts" target="browser_group">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Light Panel polls Light State API -->
+        <mxCell id="poll_lights" value="Poll 3s&lt;br&gt;GET" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeWidth=1;fontSize=9;strokeColor=#9673a6;dashed=1;exitX=1;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="light_panel" target="light_state_api">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="470" y="305" />
+              <mxPoint x="470" y="625" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Light State API reads state file -->
+        <mxCell id="api_reads_file" value="reads" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeWidth=1;fontSize=9;strokeColor=#666666;dashed=1;" edge="1" parent="1" source="light_state_api" target="state_file">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ========== AZURE SPEECH GROUP ========== -->
+        <mxCell id="azure_speech" value="Azure Speech Services&lt;br&gt;&lt;font style=&quot;font-size:10px;font-weight:normal;&quot;&gt;swedencentral&lt;/font&gt;" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="560" width="160" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- STT ↔ Azure Speech -->
+        <mxCell id="stt_azure" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeWidth=2;fontSize=9;strokeColor=#6c8ebf;" edge="1" parent="1" source="stt" target="azure_speech">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- TTS ↔ Azure Speech -->
+        <mxCell id="tts_azure" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeWidth=2;fontSize=9;strokeColor=#6c8ebf;" edge="1" parent="1" source="tts" target="azure_speech">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="385" y="610" />
+              <mxPoint x="170" y="610" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ========== FOUNDRY AGENT (CLOUD) ========== -->
+        <mxCell id="foundry_group" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6d0de;strokeColor=#996185;dashed=1;dashPattern=5 5;verticalAlign=top;fontStyle=1;fontSize=13;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="570" y="400" width="230" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="foundry_label" value="☁️ Microsoft Foundry (Cloud)" style="text;html=1;fontSize=13;fontStyle=1;align=center;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="585" y="405" width="200" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="foundry_agent" value="Foundry Agent&lt;br&gt;&lt;font style=&quot;font-size:10px;font-weight:normal;&quot;&gt;GPT-4.1-mini model&lt;br&gt;Agent reference by name&lt;br&gt;Thread management&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="600" y="445" width="170" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="mcp_dispatch" value="MCP Tool Dispatch&lt;br&gt;&lt;font style=&quot;font-size:9px;font-weight:normal;&quot;&gt;Calls tools via dev tunnel&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="610" y="535" width="150" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Agent Proxy → Foundry Agent -->
+        <mxCell id="proxy_to_foundry" value="responses.create()&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;+ auto-approve loop&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeWidth=2;fontSize=9;strokeColor=#9673a6;" edge="1" parent="1" source="agent_proxy" target="foundry_agent">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="255" y="710" />
+              <mxPoint x="540" y="710" />
+              <mxPoint x="540" y="480" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Foundry Agent → MCP Dispatch -->
+        <mxCell id="agent_to_dispatch" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeWidth=2;fontSize=9;strokeColor=#9673a6;" edge="1" parent="1" source="foundry_agent" target="mcp_dispatch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ========== DEV TUNNEL ========== -->
+        <mxCell id="devtunnel" value="Dev Tunnel&lt;br&gt;&lt;font style=&quot;font-size:9px;font-weight:normal;&quot;&gt;Exposes local ports&lt;br&gt;to Foundry cloud&lt;/font&gt;" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="870" y="470" width="140" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- MCP Dispatch → Dev Tunnel -->
+        <mxCell id="dispatch_to_tunnel" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeWidth=2;fontSize=9;strokeColor=#666666;" edge="1" parent="1" source="mcp_dispatch" target="devtunnel">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ========== PLAYWRIGHT MCP ========== -->
+        <mxCell id="playwright_mcp" value="Playwright MCP&lt;br&gt;&lt;font style=&quot;font-size:10px;font-weight:normal;&quot;&gt;Port 8931 · SSE&lt;br&gt;Chromium browser&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="340" width="160" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- ========== OR LIGHTS MCP ========== -->
+        <mxCell id="or_lights_mcp" value="OR Lights MCP&lt;br&gt;&lt;font style=&quot;font-size:10px;font-weight:normal;&quot;&gt;Port 8932 · Streamable HTTP&lt;br&gt;or_lights_mcp.py&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="540" width="160" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- Dev Tunnel → Playwright -->
+        <mxCell id="tunnel_to_playwright" value=":8931" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeWidth=2;fontSize=10;fontStyle=1;strokeColor=#82b366;" edge="1" parent="1" source="devtunnel" target="playwright_mcp">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1040" y="488" />
+              <mxPoint x="1040" y="373" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Dev Tunnel → OR Lights -->
+        <mxCell id="tunnel_to_lights" value=":8932" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeWidth=2;fontSize=10;fontStyle=1;strokeColor=#82b366;" edge="1" parent="1" source="devtunnel" target="or_lights_mcp">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1040" y="523" />
+              <mxPoint x="1040" y="573" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ========== BROWSER WINDOW ========== -->
+        <mxCell id="browser_window" value="🌐 Chromium Browser&lt;br&gt;&lt;font style=&quot;font-size:9px;font-weight:normal;&quot;&gt;Shared context&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="347" width="120" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Playwright → Browser -->
+        <mxCell id="playwright_to_browser" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeWidth=2;fontSize=9;strokeColor=#6c8ebf;" edge="1" parent="1" source="playwright_mcp" target="browser_window">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ========== OR LIGHTS (5 fixtures) ========== -->
+        <mxCell id="lights_group" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;dashed=1;dashPattern=5 5;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="520" width="140" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="lights_label" value="🏥 OR Lights" style="text;html=1;fontSize=11;fontStyle=1;align=center;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1295" y="522" width="90" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="light_list" value="surgical_main&lt;br&gt;surgical_secondary&lt;br&gt;ambient_ceiling&lt;br&gt;ambient_wall&lt;br&gt;task_monitor" style="text;html=1;fontSize=9;align=left;verticalAlign=top;fontFamily=Courier New;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="545" width="120" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- OR Lights MCP → Lights -->
+        <mxCell id="lights_to_fixtures" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeWidth=2;fontSize=9;strokeColor=#d6b656;" edge="1" parent="1" source="or_lights_mcp" target="lights_group">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- OR Lights MCP writes state file -->
+        <mxCell id="lights_writes_file" value="writes" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeWidth=1;fontSize=9;strokeColor=#666666;dashed=1;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="or_lights_mcp" target="state_file">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1070" y="723" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ========== TOOLS LEGEND ========== -->
+        <mxCell id="legend_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#999999;dashed=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="660" width="330" height="135" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_title" value="MCP Tools" style="text;html=1;fontSize=12;fontStyle=1;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="665" width="100" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_playwright" value="&lt;b&gt;Playwright MCP:&lt;/b&gt; browser_navigate, browser_click,&lt;br&gt;browser_snapshot, browser_type, browser_tabs, ..." style="text;html=1;fontSize=9;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="690" width="310" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_lights" value="&lt;b&gt;OR Lights MCP:&lt;/b&gt; get_all_lights, set_light,&lt;br&gt;set_light_zone, activate_scene, list_scenes" style="text;html=1;fontSize=9;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="720" width="310" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_scenes" value="&lt;b&gt;Scene Presets:&lt;/b&gt; full_surgery, laparoscopy, prep,&lt;br&gt;closing, emergency, standby" style="text;html=1;fontSize=9;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="750" width="310" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ========== STARTUP LEGEND ========== -->
+        <mxCell id="startup_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#999999;dashed=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="20" y="700" width="200" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="startup_title" value="start.sh launches:" style="text;html=1;fontSize=11;fontStyle=1;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="30" y="705" width="140" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="startup_list" value="1. OR Lights MCP (:8932)&lt;br&gt;2. Playwright MCP (:8931)&lt;br&gt;3. Dev Tunnel (both ports)&lt;br&gt;4. FastAPI (:8000)" style="text;html=1;fontSize=10;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="30" y="725" width="180" height="60" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
