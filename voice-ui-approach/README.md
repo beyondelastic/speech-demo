@@ -1,58 +1,62 @@
-# Voice UI Approach - Complete Voice Interface
+# Voice UI Approach - OR Voice Assistant
 
-A full-featured web-based voice interface for controlling browsers through Microsoft Foundry AI Agents. Features local speech processing, agent communication, and automatic MCP tool approval for seamless browser automation.
+A hands-free voice interface for operating rooms, built on Microsoft Foundry AI Agents. Surgeons and medical staff can control OR lighting and browse the web using voice commands — no hands required.
 
 ## Overview
 
-This approach provides a complete voice-to-browser-automation pipeline:
-- Rich web UI for voice interaction
-- Azure Speech Services for speech-to-text and text-to-speech
-- Microsoft Foundry Agent with GPT-4o for intelligence
-- Playwright MCP Server for advanced browser control
-- Automatic tool approval for uninterrupted automation
+This approach provides two voice-controlled capabilities:
+1. **OR Lighting Control** — adjust surgical/ambient lights, activate scene presets, and control individual fixtures via an MCP tool server
+2. **Browser Automation** — navigate websites, search, click elements, and more via Playwright MCP
+
+Both are powered by a single Foundry agent that receives voice input and decides which tools to call.
 
 ## Features
 
 - 🎙️ **Voice Input**: Record and stream voice messages with real-time recognition
 - 🔊 **Voice Output**: Agent responds with natural synthesized speech
+- 💡 **OR Lighting Control**: Voice-controlled surgical and ambient lights with scene presets
+- 🏥 **Live OR Visualization**: Real-time light panel showing fixture states, zones, and active scene
+- 🌐 **Browser Automation**: Full browser control via Playwright (navigate, click, extract data)
 - 💬 **Chat Transcript**: Visual conversation history with timestamps
 - 🤖 **Auto-Approval**: MCP tool requests automatically approved for seamless execution
-- 🔄 **Stateful Conversations**: Persistent thread context across interactions
-- 🌐 **Browser Automation**: Full browser control via Playwright (navigate, click, extract data)
 - 📡 **WebSocket Streaming**: Real-time audio streaming for faster response
-- ⚙️ **Flexible Configuration**: Support for custom speech keys or Foundry integration
+- 🌍 **Multi-language**: Supports English and German voice commands
 
 ## Architecture
 
 ```
-┌─────────────────┐
-│   Browser UI    │  User speaks into microphone
-│  (index.html)   │  
-└────────┬────────┘
-         │ WebM Audio (MediaRecorder API)
-         ↓
-┌─────────────────┐
-│  FastAPI Server │  
-│    (main.py)    │
-└────────┬────────┘
-         ├──> Azure Speech Services
-         │    • Speech-to-Text (STT)
-         │    • Text-to-Speech (TTS)
-         │
-         ├──> Microsoft Foundry Agent
-         │    • GPT-4o model
-         │    • Thread management
-         │    • Tool calling
-         │
-         └──> Auto-Approval System
-              • Intercepts MCP tool requests
-              • Automatically approves Playwright actions
-              • Returns results to agent
-                     ↓
-              ┌──────────────────┐
-              │ Playwright MCP   │  Browser automation
-              │ Server (Local)   │  (navigate, click, etc.)
-              └──────────────────┘
+┌────────────────────────────────────────────┐
+│              Browser UI (index.html)       │
+│  ┌──────────────────┐  ┌────────────────┐  │
+│  │  Voice Chat      │  │  OR Light      │  │
+│  │  Panel           │  │  Visualization │  │
+│  └────────┬─────────┘  └───────▲────────┘  │
+│           │ WebSocket          │ Polling    │
+│           │ Audio              │ /api/      │
+│           │                    │ lights/    │
+│           │                    │ state      │
+└───────────┼────────────────────┼───────────┘
+            ↓                    │
+┌─────────────────────────────────────────────┐
+│           FastAPI Server (main.py)          │
+│           Port 8000                         │
+└────────┬──────────────────────┬─────────────┘
+         │                      │
+         ├──> Azure Speech      ├──> Reads .or_lights_state.json
+         │    • STT / TTS       │
+         │                      │
+         └──> Foundry Agent (cloud)
+              • GPT-4o model
+              • Auto-approves MCP tool calls
+              │
+              ├──────────────────────────────┐
+              ↓                              ↓
+     ┌──────────────────┐       ┌────────────────────┐
+     │ Playwright MCP   │       │  OR Lights MCP     │
+     │ Server :8931     │       │  Server :8932      │
+     │ (browser control)│       │  (lighting control)│
+     └──────────────────┘       └────────────────────┘
+              ↑ exposed via Dev Tunnel ↑
 ```
 
 ## Prerequisites
@@ -70,9 +74,30 @@ This approach provides a complete voice-to-browser-automation pipeline:
 
 ### Local Requirements
 
-- Python 3.8+
+- Python 3.10+
 - Node.js and npm (for Playwright MCP server)
 - ffmpeg (for audio conversion)
+
+## Quick Start
+
+The easiest way to start all services is with the included script:
+
+```bash
+cd voice-ui-approach
+./start.sh
+```
+
+This starts all four services in sequence:
+1. **OR Lights MCP Server** (port 8932) — lighting control tools
+2. **Playwright MCP Server** (port 8931) — browser automation tools
+3. **Dev Tunnel** — exposes both MCP servers to Foundry cloud
+4. **FastAPI Backend** (port 8000) — web UI, speech, agent communication
+
+Press `Ctrl+C` to stop all services.
+
+## Manual Setup
+
+If you prefer to start services individually:
 
 ## Installation
 
@@ -107,7 +132,15 @@ This approach provides a complete voice-to-browser-automation pipeline:
 
 ## Running the Application
 
-### 1. Start the Playwright MCP Server
+### 1. Start the OR Lights MCP Server
+
+```bash
+python or_lights_mcp.py --port 8932
+```
+
+This server exposes lighting control tools via SSE transport. It persists light state to `.or_lights_state.json`.
+
+### 2. Start the Playwright MCP Server
 
 The agent requires the Playwright MCP server for browser automation.
 
@@ -120,7 +153,9 @@ npx playwright install chromium
 npx playwright install-deps chromium
 ```
 
-**Start the MCP server:**
+### 3. Start the Playwright MCP Server
+
+The agent requires the Playwright MCP server for browser automation.
 ```bash
 npx @playwright/mcp@latest --port 8931 --host 0.0.0.0 --browser chromium --shared-browser-context
 ```
@@ -131,9 +166,9 @@ npx @playwright/mcp@latest --port 8931 --host 0.0.0.0 --browser chromium --share
 
 Keep this terminal running. The server listens on port 8931.
 
-### 2. Expose Playwright MCP Server via Dev Tunnel
+### 4. Expose MCP Servers via Dev Tunnel
 
-Since the Foundry agent runs in the cloud, it needs access to your local MCP server. Use a dev tunnel:
+Since the Foundry agent runs in the cloud, it needs access to your local MCP servers. Use a dev tunnel:
 
 **First-time setup:**
 ```bash
@@ -143,8 +178,9 @@ devtunnel user login
 # Create tunnel
 devtunnel create playwright-mcp-tunnel -a
 
-# Create port mapping for MCP server
+# Create port mappings for both MCP servers
 devtunnel port create playwright-mcp-tunnel -p 8931
+devtunnel port create playwright-mcp-tunnel -p 8932
 ```
 
 **Start the tunnel** (in a separate terminal):
@@ -152,14 +188,17 @@ devtunnel port create playwright-mcp-tunnel -p 8931
 devtunnel host playwright-mcp-tunnel
 ```
 
-You'll see output like:
+You'll see output with URLs like:
 ```
-Connect via browser: https://playwright-mcp-tunnel-xxx.devtunnels.ms
+https://kk13d7j6-8931.euw.devtunnels.ms   → Playwright MCP
+https://kk13d7j6-8932.euw.devtunnels.ms   → OR Lights MCP
 ```
 
-**Configure in Foundry**: Use this URL when configuring the Playwright MCP server in your Microsoft Foundry agent settings.
+**Configure in Foundry**: Add both MCP server URLs to your Microsoft Foundry agent:
+- Playwright MCP: `https://<tunnel>-8931.<region>.devtunnels.ms/sse`
+- OR Lights MCP: `https://<tunnel>-8932.<region>.devtunnels.ms/sse`
 
-### 3. Start the FastAPI Server
+### 5. Start the FastAPI Server
 
 ```bash
 python main.py
@@ -167,24 +206,29 @@ python main.py
 
 Server starts at `http://localhost:8000`
 
-### 4. Open in Browser
+### 6. Open in Browser
 
 Navigate to `http://localhost:8000`
 
-### 5. Configure Agent in Foundry
+### 7. Configure Agent in Foundry
 
 **Important**: Configure your Foundry agent with the system prompt from [AGENT_SYSTEM_PROMPT.md](AGENT_SYSTEM_PROMPT.md). This prompt enables:
 - Multi-language support (English/German)
 - Proper URL and domain handling
 - Browser command understanding
+- OR lighting control with scene presets
 - Cookie popup handling
+
+**In Foundry**, add both MCP servers:
+- **Playwright MCP**: Use the dev tunnel URL for port 8931 (SSE endpoint)
+- **OR Lights MCP**: Use the dev tunnel URL for port 8932 (SSE endpoint)
 
 **In the web UI:**
 - Enter your **Agent ID** (the name you gave your agent in Foundry)
 - Speech credentials are auto-detected from `.env` or Azure
 - Click **Save**
 
-### 6. Start Conversation
+### 8. Start Conversation
 
 - Click 🎤 to start recording
 - Speak your request
@@ -195,35 +239,51 @@ Navigate to `http://localhost:8000`
 
 For a full working setup, you need these running simultaneously:
 
-- [ ] **Terminal 1**: Playwright MCP Server
+- [ ] **Terminal 1**: OR Lights MCP Server
+  ```bash
+  python or_lights_mcp.py --port 8932
+  ```
+
+- [ ] **Terminal 2**: Playwright MCP Server
   ```bash
   npx @playwright/mcp@latest --port 8931 --host 0.0.0.0 --browser chromium --shared-browser-context
   ```
 
-- [ ] **Terminal 2**: Dev Tunnel (for MCP server)
+- [ ] **Terminal 3**: Dev Tunnel (for both MCP servers)
   ```bash
   devtunnel host playwright-mcp-tunnel
   ```
 
-- [ ] **Terminal 3**: FastAPI Backend
+- [ ] **Terminal 4**: FastAPI Backend
   ```bash
   python main.py
   ```
 
 - [ ] **Browser**: http://localhost:8000
 
-- [ ] **Foundry Agent**: Configured with dev tunnel URL for MCP server
+- [ ] **Foundry Agent**: Configured with dev tunnel URLs for both MCP servers
+
+Or simply run `./start.sh` to start everything at once.
 
 ## Example Commands
 
-Try saying:
-- "Open my browser and navigate to Google"
+### Lighting Control
+- "Turn on the surgical light"
+- "Dim the lights to 50 percent"
+- "Switch to laparoscopy mode"
+- "Surgery mode"
+- "All lights off"
+- "Emergency lights"
+- "What's the current light status?"
+
+### Browser Automation
+- "Open a browser and navigate to Google"
 - "Search for cats"
 - "Click on the Images tab"
 - "Go to GitHub.com"
 - "Open a new tab and go to Wikipedia"
 
-The agent will automatically approve and execute Playwright MCP tool calls to control the browser.
+The agent will automatically approve and execute MCP tool calls to control lights and browser.
 
 ## How It Works
 
@@ -259,6 +319,7 @@ The backend automatically:
 | `/api/speech-to-text` | POST | Convert audio to text |
 | `/api/agent/chat` | POST | Send message to agent |
 | `/api/text-to-speech` | POST | Convert text to audio |
+| `/api/lights/state` | GET | Get current OR light states |
 | `/api/agent/thread/{id}` | DELETE | Clear conversation |
 | `/health` | GET | Health check |
 
@@ -266,13 +327,19 @@ The backend automatically:
 
 ```
 voice-ui-approach/
-├── main.py                  # FastAPI backend
-├── index.html               # Web interface
-├── app.js                  # Frontend JavaScript
+├── main.py                  # FastAPI backend (speech, agent, light state API)
+├── or_lights_mcp.py         # OR Lights MCP server (SSE transport)
+├── index.html               # Web interface (chat + OR light panel)
+├── app.js                   # Frontend JavaScript (voice + light visualization)
+├── start.sh                 # Auto-start script for all services
 ├── requirements.txt         # Python dependencies
-├── AGENT_SYSTEM_PROMPT.md  # Foundry agent configuration
-├── .env.example            # Environment template
-└── README.md               # This file
+├── AGENT_SYSTEM_PROMPT.md   # Foundry agent system prompt
+├── .env.example             # Environment template
+├── .or_lights_state.json    # Light state (auto-generated, gitignored)
+├── utils/                   # Utility scripts
+│   ├── check_old_api_agents.py
+│   └── list_agents.py
+└── README.md                # This file
 ```
 
 ## Configuration Details
@@ -308,12 +375,17 @@ The system uses a cascading configuration priority:
 ### "Agent communication error"
 - Ensure you're logged in: `az login`
 - Verify agent name matches exactly
-- Check agent has Playwright MCP server enabled
+- Check agent has both MCP servers configured (Playwright + OR Lights)
+
+### Lights not updating in UI
+- Verify OR Lights MCP server is running on port 8932
+- Check `.or_lights_state.json` exists and is being updated
+- Open browser console and check for polling errors on `/api/lights/state`
 
 ### Browser doesn't open
-- Verify Playwright MCP server is configured in Foundry
-- Check server logs for MCP approval messages
-- Ensure agent has permission to use tools
+- Verify Playwright MCP server is running on port 8931
+- Check dev tunnel is exposing port 8931
+- Ensure agent has Playwright MCP server configured in Foundry
 
 ## Development
 

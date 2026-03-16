@@ -8,6 +8,7 @@ This server handles:
 
 import os
 import uuid
+import json
 import tempfile
 from typing import Optional
 from pathlib import Path
@@ -475,55 +476,75 @@ async def speech_stream_websocket(websocket: WebSocket):
                 
                 conversation_id = conversation_threads[thread_key]
                 
-                # Send message to agent
-                if thread_key in last_response_ids:
-                    response = await _openai_client.responses.create(
-                        previous_response_id=last_response_ids[thread_key],
-                        extra_body={"agent": {"name": agent_id, "type": "agent_reference"}},
-                        input=user_text
-                    )
-                else:
-                    response = await _openai_client.responses.create(
-                        conversation=conversation_id,
-                        extra_body={"agent": {"name": agent_id, "type": "agent_reference"}},
-                        input=user_text
-                    )
-                
-                # Auto-approve MCP tool requests
-                max_iterations = 10
-                iteration = 0
-                
-                while iteration < max_iterations:
-                    approval_requests = [
-                        item for item in (response.output or [])
-                        if hasattr(item, 'type') and item.type == 'mcp_approval_request'
-                    ]
-                    
-                    if not approval_requests:
+                # Send message to agent with retry for transient MCP tool errors
+                max_retries = 2
+                for attempt in range(max_retries + 1):
+                    try:
+                        if thread_key in last_response_ids:
+                            response = await _openai_client.responses.create(
+                                previous_response_id=last_response_ids[thread_key],
+                                extra_body={"agent": {"name": agent_id, "type": "agent_reference"}},
+                                input=user_text
+                            )
+                        else:
+                            response = await _openai_client.responses.create(
+                                conversation=conversation_id,
+                                extra_body={"agent": {"name": agent_id, "type": "agent_reference"}},
+                                input=user_text
+                            )
+                        
+                        # Auto-approve MCP tool requests
+                        max_iterations = 10
+                        iteration = 0
+                        
+                        while iteration < max_iterations:
+                            approval_requests = [
+                                item for item in (response.output or [])
+                                if hasattr(item, 'type') and item.type == 'mcp_approval_request'
+                            ]
+                            
+                            if not approval_requests:
+                                break
+                            
+                            iteration += 1
+                            
+                            # Show tool usage feedback
+                            tool_names = ', '.join(a.name for a in approval_requests)
+                            await websocket.send_json({
+                                "type": "agent_thinking",
+                                "message": f"Using {len(approval_requests)} tool(s): {tool_names}"
+                            })
+                            print(f"[MCP] Auto-approving {len(approval_requests)} tool(s): {tool_names}")
+                            
+                            # Create approval responses
+                            approval_inputs = [{
+                                "type": "mcp_approval_response",
+                                "approve": True,
+                                "approval_request_id": approval.id
+                            } for approval in approval_requests]
+                            
+                            response = await _openai_client.responses.create(
+                                extra_body={"agent": {"name": agent_id, "type": "agent_reference"}},
+                                previous_response_id=response.id,
+                                input=approval_inputs
+                            )
+                        
+                        # Success - break out of retry loop
                         break
-                    
-                    iteration += 1
-                    
-                    # Show tool usage feedback
-                    tool_names = ', '.join(a.name for a in approval_requests)
-                    await websocket.send_json({
-                        "type": "agent_thinking",
-                        "message": f"Using {len(approval_requests)} tool(s): {tool_names}"
-                    })
-                    print(f"[MCP] Auto-approving {len(approval_requests)} tool(s): {tool_names}")
-                    
-                    # Create approval responses
-                    approval_inputs = [{
-                        "type": "mcp_approval_response",
-                        "approve": True,
-                        "approval_request_id": approval.id
-                    } for approval in approval_requests]
-                    
-                    response = await _openai_client.responses.create(
-                        extra_body={"agent": {"name": agent_id, "type": "agent_reference"}},
-                        previous_response_id=response.id,
-                        input=approval_inputs
-                    )
+                        
+                    except Exception as tool_err:
+                        err_str = str(tool_err)
+                        is_tool_error = 'tool_user_error' in err_str or 'Error encountered while invoking tool' in err_str
+                        if is_tool_error and attempt < max_retries:
+                            backoff = 3 * (attempt + 1)  # 3s, 6s
+                            print(f"[Agent] Tool error (attempt {attempt + 1}/{max_retries + 1}), retrying in {backoff}s: {err_str[:120]}")
+                            await websocket.send_json({
+                                "type": "agent_thinking",
+                                "message": f"Tool timed out, retrying ({attempt + 2}/{max_retries + 1})..."
+                            })
+                            await asyncio.sleep(backoff)
+                            continue
+                        raise
                 
                 last_response_ids[thread_key] = response.id
                 
@@ -860,6 +881,22 @@ async def clear_thread(thread_id: str):
 async def health():
     """Health check endpoint"""
     return {"status": "ok"}
+
+
+# --- OR Light State ---
+# Read shared light state written by the OR Lights MCP server
+
+OR_LIGHTS_STATE_FILE = Path(__file__).parent / ".or_lights_state.json"
+
+@app.get("/api/lights/state")
+async def get_light_state():
+    """Get current light state from the shared state file."""
+    try:
+        if OR_LIGHTS_STATE_FILE.exists():
+            return json.loads(OR_LIGHTS_STATE_FILE.read_text())
+        return {}
+    except Exception:
+        return {}
 
 
 if __name__ == "__main__":

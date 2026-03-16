@@ -10,3 +10,6 @@ pydub==0.25.1
 # Agent framework - install without extras to avoid dependency hell
 agent-framework-azure-ai
 pydantic>=2.0.0,<3.0.0
+
+# OR Lights MCP Server
+mcp[cli]

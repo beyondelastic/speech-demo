@@ -545,4 +545,203 @@ class VoiceAgentInterface {
 // Initialize the interface when the page loads
 document.addEventListener('DOMContentLoaded', () => {
     new VoiceAgentInterface();
+    new ORLightPanel();
 });
+
+
+// --- OR Light Panel ---
+
+class ORLightPanel {
+    constructor() {
+        this.pollInterval = null;
+        this.currentState = {};
+        this.activeScene = null;
+
+        // Scene preset definitions (mirror the MCP server)
+        this.scenePresets = {
+            full_surgery: {
+                surgical_main: { power: true, brightness: 100 },
+                surgical_secondary: { power: true, brightness: 90 },
+                ambient_ceiling: { power: true, brightness: 30 },
+                ambient_wall: { power: true, brightness: 20 },
+                task_monitor: { power: true, brightness: 70 }
+            },
+            laparoscopy: {
+                surgical_main: { power: false, brightness: 0 },
+                surgical_secondary: { power: false, brightness: 0 },
+                ambient_ceiling: { power: true, brightness: 10 },
+                ambient_wall: { power: true, brightness: 10 },
+                task_monitor: { power: true, brightness: 100 }
+            },
+            prep: {
+                surgical_main: { power: true, brightness: 100 },
+                surgical_secondary: { power: true, brightness: 100 },
+                ambient_ceiling: { power: true, brightness: 100 },
+                ambient_wall: { power: true, brightness: 100 },
+                task_monitor: { power: true, brightness: 80 }
+            },
+            closing: {
+                surgical_main: { power: true, brightness: 80 },
+                surgical_secondary: { power: true, brightness: 60 },
+                ambient_ceiling: { power: true, brightness: 50 },
+                ambient_wall: { power: true, brightness: 40 },
+                task_monitor: { power: true, brightness: 60 }
+            },
+            emergency: {
+                surgical_main: { power: true, brightness: 100 },
+                surgical_secondary: { power: true, brightness: 100 },
+                ambient_ceiling: { power: true, brightness: 100 },
+                ambient_wall: { power: true, brightness: 100 },
+                task_monitor: { power: true, brightness: 100 }
+            },
+            standby: {
+                surgical_main: { power: false, brightness: 0 },
+                surgical_secondary: { power: false, brightness: 0 },
+                ambient_ceiling: { power: true, brightness: 20 },
+                ambient_wall: { power: true, brightness: 15 },
+                task_monitor: { power: false, brightness: 0 }
+            }
+        };
+
+        this.startPolling();
+    }
+
+    startPolling() {
+        this.fetchState();
+        this.pollInterval = setInterval(() => this.fetchState(), 1000);
+    }
+
+    async fetchState() {
+        try {
+            const response = await fetch('/api/lights/state');
+            if (response.ok) {
+                const state = await response.json();
+                if (Object.keys(state).length > 0) {
+                    this.currentState = state;
+                    this.render();
+                }
+            }
+        } catch (e) {
+            // Silently ignore - MCP server may not be running
+        }
+    }
+
+    render() {
+        const lightIds = ['surgical_main', 'surgical_secondary', 'ambient_ceiling', 'ambient_wall', 'task_monitor'];
+
+        for (const id of lightIds) {
+            const data = this.currentState[id];
+            if (!data) continue;
+            const el = document.getElementById(`light-${id}`);
+            if (!el) continue;
+
+            const isOn = data.power === 'ON';
+            const brightness = data.brightness;
+            const colorTemp = data.color_temp_kelvin || 4500;
+
+            // Toggle off class
+            el.classList.toggle('off', !isOn);
+
+            // Update value text
+            const valueEl = el.querySelector('.light-value');
+            if (valueEl) {
+                valueEl.textContent = isOn ? `${brightness}%` : 'OFF';
+            }
+
+            // Compute light color from color temperature
+            const lightColor = this.kelvinToRGB(colorTemp);
+            const iconEl = el.querySelector('.light-icon');
+            const glowEl = el.querySelector('.light-glow');
+
+            if (isOn && brightness > 0) {
+                const alpha = brightness / 100;
+                const glowSize = 60 + (brightness * 1.2);
+                const rgb = `${lightColor.r}, ${lightColor.g}, ${lightColor.b}`;
+
+                iconEl.style.background = `rgba(${rgb}, ${0.3 + alpha * 0.7})`;
+                iconEl.style.boxShadow = `0 0 ${brightness / 3}px rgba(${rgb}, ${alpha})`;
+
+                glowEl.style.width = `${glowSize}px`;
+                glowEl.style.height = `${glowSize}px`;
+                glowEl.style.top = `${-(glowSize - 56) / 2}px`;
+                glowEl.style.left = `${(56 - glowSize) / 2}px`;
+                glowEl.style.background = `radial-gradient(circle, rgba(${rgb}, ${alpha * 0.35}) 0%, transparent 70%)`;
+            } else {
+                iconEl.style.background = '#374151';
+                iconEl.style.boxShadow = 'none';
+                glowEl.style.width = '0px';
+                glowEl.style.height = '0px';
+                glowEl.style.background = 'none';
+            }
+        }
+
+        this.renderDetails();
+        this.detectActiveScene();
+    }
+
+    renderDetails() {
+        const container = document.getElementById('lightDetails');
+        if (!container) return;
+
+        let html = '';
+        for (const [id, data] of Object.entries(this.currentState)) {
+            const isOn = data.power === 'ON';
+            const statusClass = isOn ? 'on' : 'off';
+            html += `
+                <div class="light-detail-row">
+                    <span class="light-detail-name">${data.name}</span>
+                    <div class="light-detail-status">
+                        <span class="${statusClass}">${isOn ? `${data.brightness}%` : 'OFF'}</span>
+                        <span>${data.color_temp_kelvin}K</span>
+                    </div>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
+    }
+
+    detectActiveScene() {
+        let matched = null;
+        for (const [sceneId, preset] of Object.entries(this.scenePresets)) {
+            let isMatch = true;
+            for (const [lightId, expected] of Object.entries(preset)) {
+                const actual = this.currentState[lightId];
+                if (!actual) { isMatch = false; break; }
+                const actualOn = actual.power === 'ON';
+                if (actualOn !== expected.power || actual.brightness !== expected.brightness) {
+                    isMatch = false;
+                    break;
+                }
+            }
+            if (isMatch) { matched = sceneId; break; }
+        }
+
+        document.querySelectorAll('.scene-badge').forEach(badge => {
+            badge.classList.toggle('active', badge.dataset.scene === matched);
+        });
+    }
+
+    kelvinToRGB(kelvin) {
+        // Approximate color temperature to RGB
+        const temp = kelvin / 100;
+        let r, g, b;
+
+        if (temp <= 66) {
+            r = 255;
+            g = Math.min(255, Math.max(0, 99.4708025861 * Math.log(temp) - 161.1195681661));
+        } else {
+            r = Math.min(255, Math.max(0, 329.698727446 * Math.pow(temp - 60, -0.1332047592)));
+            g = Math.min(255, Math.max(0, 288.1221695283 * Math.pow(temp - 60, -0.0755148492)));
+        }
+
+        if (temp >= 66) {
+            b = 255;
+        } else if (temp <= 19) {
+            b = 0;
+        } else {
+            b = Math.min(255, Math.max(0, 138.5177312231 * Math.log(temp - 10) - 305.0447927307));
+        }
+
+        return { r: Math.round(r), g: Math.round(g), b: Math.round(b) };
+    }
+}

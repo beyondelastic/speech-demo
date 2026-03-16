@@ -1,10 +1,10 @@
-# Speech Demo - Voice-Controlled Browser Automation
+# Speech Demo - Voice-Controlled OR Assistant & Browser Automation
 
-Two different approaches for voice-controlled browser automation using Microsoft Foundry AI Agents.
+Two different approaches for voice-controlled automation using Microsoft Foundry AI Agents.
 
 ## Overview
 
-This repository demonstrates two different architectures for controlling a local browser through voice commands using Microsoft Foundry AI Agents:
+This repository demonstrates two different architectures for hands-free voice control using Microsoft Foundry AI Agents:
 
 ### 1. **Local API Approach** (`local-api-approach/`)
 A lightweight FastAPI server that exposes browser control capabilities to a cloud-based Microsoft Foundry voice agent via HTTP endpoints.
@@ -20,21 +20,23 @@ User Voice → Foundry Voice Agent → HTTP API Call → Local FastAPI → Brows
 - Requires public endpoint (e.g., via dev tunnel)
 - Minimal local dependencies
 
-### 2. **Voice UI Approach** (`voice-ui-approach/`)
-A complete web-based voice interface with local speech processing, agent interaction, and automatic MCP tool approval for browser control.
+### 2. **Voice UI Approach** (`voice-ui-approach/`) ⭐ Recommended
+A complete web-based voice interface for operating rooms — surgeons and medical staff can control OR lighting and browse the web hands-free via voice commands.
 
 **Architecture:**
 ```
-Browser UI → Azure Speech (STT) → Local Backend → Foundry Agent → Playwright MCP → Browser Control
-           ← Azure Speech (TTS) ←
+Browser UI → Azure Speech (STT) → Local Backend → Foundry Agent ─┬→ OR Lights MCP → Lighting Control
+           ← Azure Speech (TTS) ←                                └→ Playwright MCP → Browser Control
 ```
 
 **Key Features:**
+- Hands-free OR lighting control with scene presets (surgery, laparoscopy, etc.)
+- Live OR visualization panel showing light states in real time
 - Rich web interface for voice interaction
 - Real-time speech-to-text and text-to-speech
-- Automatic MCP tool approval for seamless automation
-- Conversation history and context management
-- WebSocket support for streaming audio
+- Full browser automation via Playwright MCP
+- Automatic MCP tool approval for seamless execution
+- Multi-language support (English/German)
 
 ## Quick Start
 
@@ -51,8 +53,8 @@ python main.py
 cd voice-ui-approach
 pip install -r requirements.txt
 # Configure .env with Foundry project details
-python main.py
-# Open http://localhost:8000 and start talking
+./start.sh
+# Opens http://localhost:8000 — starts all 4 services automatically
 ```
 
 ## Project Structure
@@ -65,13 +67,17 @@ speech-demo/
 │   ├── requirements.txt         # Minimal dependencies
 │   └── README.md                # Detailed setup guide
 │
-├── voice-ui-approach/           # Complete voice interface solution
-│   ├── main.py                  # FastAPI backend with speech & agent
-│   ├── index.html               # Voice interface UI
+├── voice-ui-approach/           # OR voice assistant (recommended)
+│   ├── main.py                  # FastAPI backend (speech, agent, light state)
+│   ├── or_lights_mcp.py         # OR Lights MCP server (SSE transport)
+│   ├── index.html               # Web UI (chat + OR light visualization)
 │   ├── app.js                   # Frontend logic
+│   ├── start.sh                 # Auto-start all services
+│   ├── AGENT_SYSTEM_PROMPT.md   # Foundry agent system prompt
 │   ├── requirements.txt         # Full dependencies
 │   └── README.md                # Detailed documentation
 │
+├── docs/                        # Future improvement plans
 └── README.md                    # This file
 ```
 
@@ -82,17 +88,20 @@ speech-demo/
 | **Voice Processing** | Cloud (Foundry) | Local (Azure Speech) |
 | **Agent Location** | Cloud (Foundry) | Cloud (Foundry) |
 | **Browser Control** | Direct (webbrowser) | MCP Server (Playwright) |
-| **UI** | None (API only) | Web-based interface |
+| **Lighting Control** | — | MCP Server (OR Lights) |
+| **UI** | None (API only) | Web-based (chat + OR panel) |
 | **Complexity** | Low | Medium |
-| **Setup** | FastAPI + tunnel | FastAPI + Azure + Foundry |
-| **Use Case** | Simple URL opening | Complex browser automation |
+| **Setup** | FastAPI + tunnel | FastAPI + Azure + MCP + tunnel |
+| **Use Case** | Simple URL opening | OR lighting + browser automation |
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.10+
 - Azure subscription with Foundry project
-- Agent configured with Playwright MCP server
+- Agent configured with MCP servers (Playwright + OR Lights)
+- Node.js and npm (for Playwright MCP server)
 - ffmpeg (for audio processing)
+- Dev tunnel (for exposing MCP servers to cloud)
 - Azure CLI (`az login`)
 
 ## Documentation
@@ -101,24 +110,30 @@ See [voice-ui-approach/README.md](voice-ui-approach/README.md) for detailed setu
 
 ## Example Usage
 
+### OR Lighting Control
+**You**: "Switch to laparoscopy mode"
+**Agent**: *Activates laparoscopy scene preset* "Switched to laparoscopy mode. Surgical lights off, monitors at full brightness."
+
+**You**: "Dim the surgical light to 50 percent"
+**Agent**: *Adjusts light* "Surgical light dimmed to 50 percent."
+
+### Browser Automation
 **You**: "Open my browser and navigate to Google"
 **Agent**: *Opens browser, navigates to google.com* "I've opened your browser and navigated to Google.com."
 
 **You**: "Search for Python tutorials"
 **Agent**: *Types in search box, presses enter* "I've searched for Python tutorials."
 
-**You**: "Click the first result"
-**Agent**: *Clicks link* "I've clicked the first result."
-
-All MCP tool calls are automatically approved - no manual intervention needed!
+All MCP tool calls are automatically approved — no manual intervention needed.
 
 ## Architecture
 
-- **Frontend**: Vanilla JS with MediaRecorder API
+- **Frontend**: Vanilla JS with MediaRecorder API + OR Light visualization panel
 - **Backend**: FastAPI with Azure AI SDK
 - **Speech**: Azure Speech Services (STT/TTS)
-- **Agent**: Microsoft Foundry with Conversations API
-- **Tools**: Playwright MCP server (browser automation)
+- **Agent**: Microsoft Foundry with GPT-4o
+- **Tools**: Playwright MCP (browser) + OR Lights MCP (lighting)
+- **Transport**: SSE for MCP, WebSocket for audio streaming
 
 ## License
 
