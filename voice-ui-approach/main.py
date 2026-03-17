@@ -58,6 +58,19 @@ async def startup_event():
             _project_client = AIProjectClient(endpoint=project_endpoint, credential=_credential)
             _openai_client = _project_client.get_openai_client()
             print("[Startup] AI Project Client initialized successfully")
+            # Force token acquisition + TLS connection warmup so first user request is fast
+            try:
+                t_warmup = time.time()
+                warmup_conv = await _openai_client.conversations.create()
+                print(f"[Startup] Auth + connection warmed up ({(time.time() - t_warmup)*1000:.0f}ms)")
+                # Pre-populate default conversation so WebSocket connect doesn't need to
+                agent_id = os.getenv("AGENT_ID")
+                if agent_id:
+                    thread_key = f"{agent_id}_default"
+                    conversation_threads[thread_key] = warmup_conv.id
+                    print(f"[Startup] Pre-created conversation thread for {agent_id}")
+            except Exception as e:
+                print(f"[Startup] Warning: connection warmup failed: {e}")
         except Exception as e:
             print(f"[Startup] Warning: Could not initialize AI Project Client: {e}")
     
@@ -65,8 +78,8 @@ async def startup_event():
     _cached_speech_key, _cached_speech_region = _resolve_speech_credentials()
     if _cached_speech_key:
         print(f"[Startup] Speech credentials cached (region: {_cached_speech_region})")
-        # Warm up TTS synthesizers so the first real call is fast
-        import concurrent.futures
+        # Warm up TTS synthesizers — await completion so first TTS call is fast
+        loop = asyncio.get_event_loop()
         def _warmup_tts():
             for voice in ["en-US-AriaNeural", "de-DE-KatjaNeural"]:
                 synth = _get_synthesizer(voice)
@@ -77,7 +90,7 @@ async def startup_event():
                     synth.speak_ssml_async(ssml).get()
                     print(f"[Startup] Warmed up {voice}")
             print("[Startup] TTS synthesizers warmed up")
-        concurrent.futures.ThreadPoolExecutor(max_workers=1).submit(_warmup_tts)
+        await loop.run_in_executor(None, _warmup_tts)
     else:
         print("[Startup] Warning: No speech credentials found at startup")
 
