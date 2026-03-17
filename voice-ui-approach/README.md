@@ -25,28 +25,27 @@ Both are powered by a single Foundry agent that receives voice input and decides
 ## Architecture
 
 ```
-┌────────────────────────────────────────────┐
-│              Browser UI (index.html)       │
-│  ┌──────────────────┐  ┌────────────────┐  │
-│  │  Voice Chat      │  │  OR Light      │  │
-│  │  Panel           │  │  Visualization │  │
-│  └────────┬─────────┘  └───────▲────────┘  │
-│           │ WebSocket          │ Polling    │
-│           │ Audio              │ /api/      │
-│           │                    │ lights/    │
-│           │                    │ state      │
-└───────────┼────────────────────┼───────────┘
+┌─────────────────────────────────────────────────────┐
+│              Browser UI (index.html)                │
+│  ┌──────────────────┐  ┌────────────────┐           │
+│  │  Voice Chat      │  │  OR Light      │           │
+│  │  Panel           │  │  Visualization │           │
+│  └────────┬─────────┘  └───────▲────────┘           │
+│           │ WebSocket          │ Polling             │
+│           │ Audio              │ localhost:8932      │
+│           │                    │ /api/state          │
+└───────────┼────────────────────┼────────────────────┘
             ↓                    │
 ┌─────────────────────────────────────────────┐
 │           FastAPI Server (main.py)          │
 │           Port 8000                         │
-└────────┬──────────────────────┬─────────────┘
-         │                      │
-         ├──> Azure Speech      ├──> Reads .or_lights_state.json
-         │    • STT / TTS       │
-         │                      │
+└────────┬────────────────────────────────────┘
+         │
+         ├──> Azure Speech
+         │    • STT / TTS (Opus output)
+         │
          └──> Foundry Agent (cloud)
-              • GPT-4.1-mini model
+              • GPT-4.1 model
               • Auto-approves MCP tool calls
               │
               ├──────────────────────────────┐
@@ -64,7 +63,7 @@ Both are powered by a single Foundry agent that receives voice input and decides
 ### Azure Resources
 
 1. **Microsoft Foundry Project** with:
-   - An agent configured with gpt-4.1-mini model
+   - An agent configured with gpt-4.1 model
    - Playwright MCP server enabled
    - Multi-service AI account (includes Speech Services)
 
@@ -118,7 +117,7 @@ If you prefer to start services individually:
    ```bash
    # Required
    PROJECT_ENDPOINT=https://your-resource.services.ai.azure.com/api/projects/your-project
-   MODEL_DEPLOYMENT_NAME=gpt-4o
+   AGENT_ID=your-agent-name
    
    # Optional (will use PROJECT_ENDPOINT if not provided)
    SPEECH_KEY=your-speech-key
@@ -301,7 +300,7 @@ The agent will automatically approve and execute MCP tool calls to control light
 
 ### Text-to-Speech Flow
 1. Agent response text sent to Azure Speech
-2. Audio synthesized as WAV
+2. Audio synthesized as Opus
 3. Streamed back to browser for playback
 
 ### MCP Auto-Approval

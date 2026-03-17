@@ -68,11 +68,17 @@ speech-demo/
 │   └── README.md                # Detailed setup guide
 │
 ├── voice-ui-approach/           # OR voice assistant (recommended)
-│   ├── main.py                  # FastAPI backend (speech, agent, light state)
+│   ├── main.py                  # FastAPI backend (speech, agent, config)
 │   ├── or_lights_mcp.py         # OR Lights MCP server (Streamable HTTP)
 │   ├── index.html               # Web UI (chat + OR light visualization)
 │   ├── app.js                   # Frontend logic
 │   ├── start.sh                 # Auto-start all services
+│   ├── deploy.sh                # Azure Container Apps deployment script
+│   ├── Dockerfile               # Container image definition
+│   ├── .dockerignore            # Files excluded from Docker build
+│   ├── infra/
+│   │   └── main.bicep           # Azure infrastructure (Bicep)
+│   ├── architecture.drawio      # Architecture diagram (draw.io)
 │   ├── AGENT_SYSTEM_PROMPT.md   # Foundry agent system prompt
 │   ├── requirements.txt         # Full dependencies
 │   └── README.md                # Detailed documentation

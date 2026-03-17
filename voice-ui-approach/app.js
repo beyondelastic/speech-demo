@@ -82,7 +82,12 @@ class VoiceAgentInterface {
         if (!this.streamingMode && !this.validateConfiguration()) return;
 
         if (!this.isRecording) {
-            await this.startRecording();
+            // Check if we're resuming from paused state (WebSocket still open)
+            if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                this.resumeRecording();
+            } else {
+                await this.startRecording();
+            }
         } else {
             // Just mute/unmute the microphone, don't fully stop
             this.pauseRecording();
@@ -166,6 +171,14 @@ class VoiceAgentInterface {
                         this.updateStatus(message.message, true);
                         break;
                     
+                    case 'clear_streaming':
+                        // Clear pre-approval text so only the final response shows
+                        {
+                            const el = document.getElementById('streaming-agent-message');
+                            if (el) el.remove();
+                        }
+                        break;
+                    
                     case 'agent_response_chunk':
                         // Stream agent response in real-time
                         this.appendAgentResponse(message.text);
@@ -225,7 +238,7 @@ class VoiceAgentInterface {
             const processor = this.audioContext.createScriptProcessor(4096, 1, 1);
             
             processor.onaudioprocess = (e) => {
-                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                if (this.isRecording && this.websocket && this.websocket.readyState === WebSocket.OPEN) {
                     const inputData = e.inputBuffer.getChannelData(0);
                     // Convert float32 to int16 PCM
                     const pcmData = new Int16Array(inputData.length);
@@ -399,6 +412,15 @@ class VoiceAgentInterface {
         this.voiceButton.textContent = '🎤';
         this.updateStatus('Paused', false);
     }
+
+    resumeRecording() {
+        // Resume audio streaming on an existing WebSocket connection
+        this.isRecording = true;
+        this.voiceButton.classList.remove('paused');
+        this.voiceButton.classList.add('recording');
+        this.voiceButton.textContent = '⏹️';
+        this.updateStatus('Listening...', true);
+    }
     
 
     async processAudio(audioBlob) {
@@ -539,6 +561,10 @@ class VoiceAgentInterface {
     async _playNextAudio() {
         if (!this._audioQueue || this._audioQueue.length === 0) {
             this._audioPlaying = false;
+            // All audio segments finished — update status back to Listening
+            if (this.isRecording || (this.websocket && this.websocket.readyState === WebSocket.OPEN)) {
+                this.updateStatus('Listening...', true);
+            }
             return;
         }
         this._audioPlaying = true;
@@ -669,8 +695,13 @@ class ORLightPanel {
             if (response.ok) {
                 const state = await response.json();
                 if (Object.keys(state).length > 0) {
-                    this.currentState = state;
-                    this.render();
+                    // Only re-render if state actually changed
+                    const stateStr = JSON.stringify(state);
+                    if (stateStr !== this._lastStateStr) {
+                        this._lastStateStr = stateStr;
+                        this.currentState = state;
+                        this.render();
+                    }
                 }
             }
         } catch (e) {

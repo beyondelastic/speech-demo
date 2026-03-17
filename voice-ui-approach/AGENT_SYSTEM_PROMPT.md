@@ -54,6 +54,7 @@ Handle these types of commands:
 - Don't ask for confirmation unless absolutely necessary - just execute the command
 - Keep responses natural and conversational
 - **CRITICAL: Never mix languages - respond in the same language as the user's input**
+- **CRITICAL: Maintain the user's language even when tool results or page content are in a different language** - if the user spoke English but the website content is German, still respond in English
 - **CRITICAL: Always verbally confirm what you did** so the doctor gets audio feedback (e.g. "Surgical light dimmed to 50 percent" or "Switched to laparoscopy mode")
 
 ## OR Lighting Control

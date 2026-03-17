@@ -38,12 +38,36 @@ PIDS=()
 cleanup() {
     echo ""
     echo -e "${YELLOW}[Shutdown] Stopping all services...${NC}"
+
+    # Send SIGTERM first
     for pid in "${PIDS[@]}"; do
         if kill -0 "$pid" 2>/dev/null; then
             kill "$pid" 2>/dev/null
+        fi
+    done
+
+    # Wait up to 3 seconds for graceful shutdown
+    for i in 1 2 3; do
+        all_dead=true
+        for pid in "${PIDS[@]}"; do
+            if kill -0 "$pid" 2>/dev/null; then
+                all_dead=false
+                break
+            fi
+        done
+        if $all_dead; then break; fi
+        sleep 1
+    done
+
+    # Force-kill anything still running
+    for pid in "${PIDS[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            echo -e "${YELLOW}[Shutdown] Force-killing PID $pid...${NC}"
+            kill -9 "$pid" 2>/dev/null
             wait "$pid" 2>/dev/null
         fi
     done
+
     echo -e "${GREEN}[Shutdown] All services stopped.${NC}"
     exit 0
 }

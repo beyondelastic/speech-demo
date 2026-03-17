@@ -197,9 +197,11 @@ def _get_synthesizer(voice_name):
     return _cached_synthesizers[voice_name]
 
 
-def _synthesize_speech(text):
-    """Synthesize speech from text synchronously. Returns Opus/OGG bytes or None on failure."""
-    voice = "de-DE-KatjaNeural" if _detect_language(text) else "en-US-AriaNeural"
+def _synthesize_speech(text, voice=None):
+    """Synthesize speech from text synchronously. Returns Opus/OGG bytes or None on failure.
+    If voice is provided, use that voice directly. Otherwise auto-detect from text."""
+    if not voice:
+        voice = "de-DE-KatjaNeural" if _detect_language(text) else "en-US-AriaNeural"
     synthesizer = _get_synthesizer(voice)
     if not synthesizer:
         return None
@@ -350,7 +352,7 @@ async def speech_stream_websocket(websocket: WebSocket):
             await websocket.close()
             return
         
-        speech_config.speech_recognition_language = "de-DE"
+        speech_config.speech_recognition_language = "en-US"
         
         # Configure silence detection for auto-stop
         speech_config.set_property(
@@ -397,7 +399,9 @@ async def speech_stream_websocket(websocket: WebSocket):
         message_queue = asyncio.Queue()
         ws_loop = asyncio.get_event_loop()
         user_text_parts = []  # Accumulate all recognized text
+        detected_language = "en-US"  # Track STT auto-detected language
         silence_detected = threading.Event()
+        silence_event = asyncio.Event()  # async counterpart for zero-latency wakeup
         
         def setup_recognizer():
             """Create the speech recognizer with stream, phrase hints, and event handlers."""
@@ -443,12 +447,20 @@ async def speech_stream_websocket(websocket: WebSocket):
                     print(f"[Recognizing] {corrected_text}")
             
             def recognized_handler(evt):
+                nonlocal detected_language
                 if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech and evt.result.text:
                     corrected_text = apply_url_corrections(evt.result.text)
                     user_text_parts.append(corrected_text)
+                    # Capture the auto-detected language from STT
+                    auto_detect_result = speechsdk.AutoDetectSourceLanguageResult(evt.result)
+                    lang = auto_detect_result.language
+                    if lang:
+                        detected_language = lang
+                        print(f"[STT] Detected language: {lang}")
                     ws_loop.call_soon_threadsafe(message_queue.put_nowait, {"type": "recognized", "text": corrected_text})
                     print(f"[Recognized] {corrected_text}")
                     silence_detected.set()
+                    ws_loop.call_soon_threadsafe(silence_event.set)
             
             def canceled_handler(evt):
                 if evt.result.reason == speechsdk.ResultReason.Canceled:
@@ -495,7 +507,7 @@ async def speech_stream_websocket(websocket: WebSocket):
         sender_task = asyncio.create_task(send_queued_messages())
         
         # Helper function to process complete user input and get agent response
-        async def process_with_agent(user_text, agent_id):
+        async def process_with_agent(user_text, agent_id, tts_voice):
             try:
                 t_start = time.time()
                 t_agent_start = t_start
@@ -564,7 +576,7 @@ async def speech_stream_websocket(websocket: WebSocket):
                                         tts_started = True
                                         first_sentence = streamed_text
                                         loop = asyncio.get_event_loop()
-                                        first_sentence_task = loop.run_in_executor(None, _synthesize_speech, first_sentence)
+                                        first_sentence_task = loop.run_in_executor(None, _synthesize_speech, first_sentence, tts_voice)
                                 elif event_type == 'response.mcp_call.in_progress':
                                     tool_name = getattr(event, 'name', 'tool')
                                     await websocket.send_json({
@@ -602,6 +614,14 @@ async def speech_stream_websocket(websocket: WebSocket):
                                 "type": "agent_thinking",
                                 "message": f"Using {len(approval_requests)} tool(s): {tool_names}"
                             })
+                            # Clear pre-approval streamed text from the UI
+                            await websocket.send_json({"type": "clear_streaming"})
+                            # Discard early TTS from pre-approval text
+                            if first_sentence_task:
+                                first_sentence_task.cancel() if hasattr(first_sentence_task, 'cancel') else None
+                                first_sentence_task = None
+                                first_sentence = ""
+                                tts_started = False
                             print(f"[MCP] Auto-approving {len(approval_requests)} tool(s): {tool_names}")
                             
                             call_input = [{
@@ -634,7 +654,7 @@ async def speech_stream_websocket(websocket: WebSocket):
                 
                 # TTS: use early first-sentence audio if available, synthesize remainder
                 if agent_response_text:
-                    async def _tts_background(full_text, early_task, early_text):
+                    async def _tts_background(full_text, early_task, early_text, voice):
                         try:
                             loop = asyncio.get_event_loop()
                             if early_task:
@@ -648,14 +668,14 @@ async def speech_stream_websocket(websocket: WebSocket):
                                     print(f"[TTS] Sent first sentence ({len(first_audio)} bytes, {(time.time() - t_start)*1000:.0f}ms from start)")
                                     # Synthesize and send remainder if any
                                     if remainder:
-                                        rest_audio = await loop.run_in_executor(None, _synthesize_speech, remainder)
+                                        rest_audio = await loop.run_in_executor(None, _synthesize_speech, remainder, voice)
                                         if rest_audio:
                                             rest_b64 = base64.b64encode(rest_audio).decode('ascii')
                                             await websocket.send_json({"type": "tts_audio", "audio": rest_b64})
                                             print(f"[TTS] Sent remainder ({len(rest_audio)} bytes, {(time.time() - t_start)*1000:.0f}ms from start)")
                                     return
                             # Fallback: synthesize full text
-                            audio_data = await loop.run_in_executor(None, _synthesize_speech, full_text)
+                            audio_data = await loop.run_in_executor(None, _synthesize_speech, full_text, voice)
                             if audio_data:
                                 audio_b64 = base64.b64encode(audio_data).decode('ascii')
                                 await websocket.send_json({"type": "tts_audio", "audio": audio_b64})
@@ -663,7 +683,7 @@ async def speech_stream_websocket(websocket: WebSocket):
                         except Exception as e:
                             if "close" not in str(e).lower():
                                 print(f"[TTS] Background error: {e}")
-                    asyncio.create_task(_tts_background(agent_response_text, first_sentence_task, first_sentence))
+                    asyncio.create_task(_tts_background(agent_response_text, first_sentence_task, first_sentence, tts_voice))
                     t_agent_start = None  # reset for next turn
                     
             except Exception as e:
@@ -674,35 +694,42 @@ async def speech_stream_websocket(websocket: WebSocket):
         async def silence_monitor():
             nonlocal recognition_active, stream, speech_recognizer
             while ws_alive:
-                if silence_detected.is_set():
-                    # Brief wait for any trailing recognized events
-                    await asyncio.sleep(0.2)
-                    if user_text_parts:
-                        full_text = " ".join(user_text_parts)
-                        user_text_parts.clear()
-                        silence_detected.clear()
-                        
-                        # Stop current recognition (keep recognizer alive for reuse)
-                        recognition_active = False
-                        t_silence = time.time()
-                        try:
-                            speech_recognizer.stop_continuous_recognition()
-                        except Exception:
-                            pass
-                        print(f"[Timing] STT stop took {(time.time() - t_silence)*1000:.0f}ms")
-                        
-                        # Process with agent
-                        agent_id = config_msg.get("agentId")
-                        await process_with_agent(full_text, agent_id)
-                        
-                        # Restart recognition on the same recognizer (no reconnect)
-                        restart_recognizer()
-                        
-                        await websocket.send_json({"type": "ready_for_next"})
-                    else:
-                        silence_detected.clear()
+                # Wait for silence signal instead of polling
+                await silence_event.wait()
+                silence_event.clear()
+                if not ws_alive:
+                    break
+                
+                # Brief wait for any trailing recognized events
+                await asyncio.sleep(0.2)
+                if user_text_parts:
+                    full_text = " ".join(user_text_parts)
+                    user_text_parts.clear()
+                    silence_detected.clear()
+                    
+                    # Stop current recognition (keep recognizer alive for reuse)
+                    recognition_active = False
+                    t_silence = time.time()
+                    try:
+                        speech_recognizer.stop_continuous_recognition()
+                    except Exception:
+                        pass
+                    print(f"[Timing] STT stop took {(time.time() - t_silence)*1000:.0f}ms")
+                    
+                    # Determine TTS voice from STT-detected language
+                    tts_voice = "de-DE-KatjaNeural" if detected_language.startswith("de") else "en-US-AriaNeural"
+                    print(f"[TTS] Using voice {tts_voice} (STT detected: {detected_language})")
+                    
+                    # Process with agent
+                    agent_id = config_msg.get("agentId")
+                    await process_with_agent(full_text, agent_id, tts_voice)
+                    
+                    # Restart recognition on the same recognizer (no reconnect)
+                    restart_recognizer()
+                    
+                    await websocket.send_json({"type": "ready_for_next"})
                 else:
-                    await asyncio.sleep(0.1)
+                    silence_detected.clear()
         
         silence_task = asyncio.create_task(silence_monitor())
         
@@ -788,89 +815,81 @@ async def speech_stream_websocket(websocket: WebSocket):
 async def chat_with_agent(request: ChatRequest):
     """Send message to Microsoft Foundry Agent and get response"""
     try:
-        project_endpoint = os.getenv("PROJECT_ENDPOINT")
-        model_deployment_name = os.getenv("MODEL_DEPLOYMENT_NAME")
-        
-        if not project_endpoint or not model_deployment_name:
-            raise HTTPException(status_code=500, detail="Missing Foundry configuration")
+        if not _openai_client:
+            raise HTTPException(status_code=500, detail="AI client not initialized")
         
         print(f"[AGENT] {request.agentId}: {request.message}")
         
-        credential = DefaultAzureCredential()
+        # Get or create conversation
+        thread_key = f"{request.agentId}_{request.threadId or 'default'}"
+        if thread_key not in conversation_threads:
+            conversation = await _openai_client.conversations.create()
+            conversation_threads[thread_key] = conversation.id
         
-        async with AIProjectClient(endpoint=project_endpoint, credential=credential) as project_client:
-            openai_client = project_client.get_openai_client()
+        conversation_id = conversation_threads[thread_key]
+        
+        # Send message (use previous_response_id if available to maintain approval state)
+        if thread_key in last_response_ids:
+            response = await _openai_client.responses.create(
+                previous_response_id=last_response_ids[thread_key],
+                extra_body={"agent_reference": {"name": request.agentId, "type": "agent_reference"}},
+                input=request.message
+            )
+        else:
+            response = await _openai_client.responses.create(
+                conversation=conversation_id,
+                extra_body={"agent_reference": {"name": request.agentId, "type": "agent_reference"}},
+                input=request.message
+            )
+        
+        # Auto-approve MCP tool requests
+        max_iterations = 10
+        iteration = 0
+        
+        while iteration < max_iterations:
+            approval_requests = [
+                item for item in (response.output or [])
+                if hasattr(item, 'type') and item.type == 'mcp_approval_request'
+            ]
             
-            # Get or create conversation
-            thread_key = f"{request.agentId}_{request.threadId or 'default'}"
-            if thread_key not in conversation_threads:
-                conversation = await openai_client.conversations.create()
-                conversation_threads[thread_key] = conversation.id
+            if not approval_requests:
+                break
             
-            conversation_id = conversation_threads[thread_key]
+            iteration += 1
+            print(f"[MCP] Auto-approving {len(approval_requests)} tool(s): {', '.join(a.name for a in approval_requests)}")
             
-            # Send message (use previous_response_id if available to maintain approval state)
-            if thread_key in last_response_ids:
-                response = await openai_client.responses.create(
-                    previous_response_id=last_response_ids[thread_key],
-                    extra_body={"agent_reference": {"name": request.agentId, "type": "agent_reference"}},
-                    input=request.message
-                )
-            else:
-                response = await openai_client.responses.create(
-                    conversation=conversation_id,
-                    extra_body={"agent_reference": {"name": request.agentId, "type": "agent_reference"}},
-                    input=request.message
-                )
+            approval_inputs = [{
+                "type": "mcp_approval_response",
+                "approve": True,
+                "approval_request_id": approval.id
+            } for approval in approval_requests]
             
-            # Auto-approve MCP tool requests
-            max_iterations = 10
-            iteration = 0
-            
-            while iteration < max_iterations:
-                approval_requests = [
-                    item for item in (response.output or [])
-                    if hasattr(item, 'type') and item.type == 'mcp_approval_request'
-                ]
-                
-                if not approval_requests:
-                    break
-                
-                iteration += 1
-                print(f"[MCP] Auto-approving {len(approval_requests)} tool(s): {', '.join(a.name for a in approval_requests)}")
-                
-                approval_inputs = [{
-                    "type": "mcp_approval_response",
-                    "approve": True,
-                    "approval_request_id": approval.id
-                } for approval in approval_requests]
-                
-                response = await openai_client.responses.create(
-                    extra_body={"agent_reference": {"name": request.agentId, "type": "agent_reference"}},
-                    previous_response_id=response.id,
-                    input=approval_inputs
-                )
-            
-            if iteration >= max_iterations:
-                print(f"[WARNING] Max approval iterations reached")
-            
-            # Extract response text
-            if response.output_text:
-                response_text = response.output_text
-            elif response.output:
-                text_parts = [
-                    getattr(item, 'text', None) or getattr(item, 'content', None)
-                    for item in response.output
-                ]
-                response_text = ' '.join(str(p) for p in text_parts if p) or "Action completed."
-            else:
-                response_text = "Action completed."
-            
-            # Store response ID for maintaining approval state
-            last_response_ids[thread_key] = response.id
-            
-            print(f"[RESPONSE] {response_text[:100]}...")
-            return {"response": response_text, "threadId": thread_key}
+            response = await _openai_client.responses.create(
+                extra_body={"agent_reference": {"name": request.agentId, "type": "agent_reference"}},
+                previous_response_id=response.id,
+                input=approval_inputs
+            )
+        
+        if iteration >= max_iterations:
+            print(f"[WARNING] Max approval iterations reached")
+        
+        # Extract response text
+        if response.output_text:
+            response_text = response.output_text
+        elif response.output:
+            text_parts = [
+                getattr(item, 'text', None) or getattr(item, 'content', None)
+                for item in response.output
+            ]
+            response_text = ' '.join(str(p) for p in text_parts if p) or "Action completed."
+        else:
+            response_text = "Action completed."
+        
+        # Store response ID for maintaining approval state
+        last_response_ids[thread_key] = response.id
+        
+        print(f"[RESPONSE] {response_text[:100]}...")
+        return {"response": response_text, "threadId": thread_key}
     
     except HTTPException:
         raise
@@ -882,52 +901,22 @@ async def chat_with_agent(request: ChatRequest):
 @app.post("/api/text-to-speech")
 async def text_to_speech(request: TextToSpeechRequest):
     """Convert text to speech using Azure Speech Services"""
-    
-    temp_audio_path = None
     try:
-        # Create temp file for audio output
-        temp_audio_path = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-        temp_audio_path.close()
+        loop = asyncio.get_event_loop()
+        audio_data = await loop.run_in_executor(None, _synthesize_speech, request.text)
         
-        # Use cached speech credentials
-        try:
-            speech_config = _get_speech_config(
-                request.speechKey if request.speechKey else None,
-                request.speechRegion if request.speechRegion else None
+        if audio_data:
+            return StreamingResponse(
+                iter([audio_data]),
+                media_type="audio/ogg",
+                headers={"Content-Length": str(len(audio_data))}
             )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-        
-        is_german = _detect_language(request.text)
-        
-        # Select voice based on detected language
-        if is_german:
-            speech_config.speech_synthesis_voice_name = "de-DE-KatjaNeural"
-            print(f"[TTS] Using German voice for: {request.text[:50]}...")
-        else:
-            speech_config.speech_synthesis_voice_name = "en-US-AriaNeural"
-            print(f"[TTS] Using English voice for: {request.text[:50]}...")
-        
-        audio_config = speechsdk.AudioConfig(filename=temp_audio_path.name)
-        speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
-        
-        result = speech_synthesizer.speak_text_async(request.text).get()
-        
-        if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-            def iterfile():
-                with open(temp_audio_path.name, "rb") as f:
-                    yield from f
-                os.unlink(temp_audio_path.name)
-            
-            return StreamingResponse(iterfile(), media_type="audio/wav")
         else:
             raise HTTPException(status_code=500, detail="Speech synthesis failed")
     
     except HTTPException:
         raise
     except Exception as e:
-        if temp_audio_path and os.path.exists(temp_audio_path.name):
-            os.unlink(temp_audio_path.name)
         raise HTTPException(status_code=500, detail=str(e))
 
 
