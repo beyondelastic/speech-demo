@@ -574,11 +574,27 @@ async def speech_stream_websocket(websocket: WebSocket):
                             streamed_text = ""
                             tts_started = False
                             first_sentence_task = None
+                            last_text_output_index = -1
                             t_agent_start = time.time()
                             async for event in await _openai_client.responses.create(**kwargs):
                                 event_type = getattr(event, 'type', '')
                                 
                                 if event_type == 'response.output_text.delta':
+                                    # Track output_index to only keep the LAST text output item.
+                                    # Post-approval responses can contain pre-tool text (replayed)
+                                    # AND post-tool text — we only want the final one.
+                                    output_idx = getattr(event, 'output_index', 0)
+                                    if output_idx > last_text_output_index:
+                                        # New text output item started — discard previous text
+                                        if last_text_output_index >= 0 and streamed_text:
+                                            await websocket.send_json({"type": "clear_streaming"})
+                                            if first_sentence_task:
+                                                first_sentence_task.cancel() if hasattr(first_sentence_task, 'cancel') else None
+                                                first_sentence_task = None
+                                                first_sentence = ""
+                                                tts_started = False
+                                        streamed_text = ""
+                                        last_text_output_index = output_idx
                                     streamed_text += event.delta
                                     await websocket.send_json({
                                         "type": "agent_response_chunk",
@@ -602,9 +618,6 @@ async def speech_stream_websocket(websocket: WebSocket):
                             if not response:
                                 break
                             
-                            last_response_ids[thread_key] = response.id
-                            use_previous = True
-                            
                             # Check for MCP approval requests
                             approval_requests = [
                                 item for item in (response.output or [])
@@ -612,13 +625,25 @@ async def speech_stream_websocket(websocket: WebSocket):
                             ]
                             
                             if not approval_requests:
-                                # Done - extract final text
-                                agent_response_text = streamed_text or response.output_text or ""
+                                # No pending approvals — safe to save response ID
+                                last_response_ids[thread_key] = response.id
+                                use_previous = True
+                                # Use streamed_text (already filtered to last output item)
+                                # Fallback: extract last text output from response
+                                if streamed_text:
+                                    agent_response_text = streamed_text
+                                else:
+                                    text_outputs = [item for item in (response.output or []) if getattr(item, 'type', '') == 'output_text']
+                                    agent_response_text = text_outputs[-1].text if text_outputs else (response.output_text or "")
                                 break
                             
                             approval_iteration += 1
                             if approval_iteration > max_approval_iterations:
-                                agent_response_text = streamed_text or response.output_text or ""
+                                if streamed_text:
+                                    agent_response_text = streamed_text
+                                else:
+                                    text_outputs = [item for item in (response.output or []) if getattr(item, 'type', '') == 'output_text']
+                                    agent_response_text = text_outputs[-1].text if text_outputs else (response.output_text or "")
                                 break
                             
                             # Auto-approve and continue
@@ -637,6 +662,10 @@ async def speech_stream_websocket(websocket: WebSocket):
                                 tts_started = False
                             print(f"[MCP] Auto-approving {len(approval_requests)} tool(s): {tool_names}")
                             
+                            # Save response ID only now — we're about to approve it
+                            last_response_ids[thread_key] = response.id
+                            use_previous = True
+                            
                             call_input = [{
                                 "type": "mcp_approval_response",
                                 "approve": True,
@@ -649,12 +678,18 @@ async def speech_stream_websocket(websocket: WebSocket):
                     except Exception as tool_err:
                         err_str = str(tool_err)
                         is_tool_error = 'tool_user_error' in err_str or 'Error encountered while invoking tool' in err_str
-                        if is_tool_error and attempt < max_retries:
-                            backoff = 1 * (attempt + 1)
-                            print(f"[Agent] Tool error (attempt {attempt + 1}/{max_retries + 1}), retrying in {backoff}s: {err_str[:120]}")
+                        is_approval_error = 'approval' in err_str.lower()
+                        is_rate_limit = '429' in err_str or 'too many requests' in err_str.lower() or 'rate' in err_str.lower()
+                        # Clear stale response ID on approval errors to prevent cascading failures
+                        if is_approval_error:
+                            last_response_ids.pop(thread_key, None)
+                            use_previous = False
+                        if (is_tool_error or is_approval_error or is_rate_limit) and attempt < max_retries:
+                            backoff = (2 ** attempt) * (3 if is_rate_limit else 1)
+                            print(f"[Agent] {'Rate limited' if is_rate_limit else 'Tool error'} (attempt {attempt + 1}/{max_retries + 1}), retrying in {backoff}s: {err_str[:120]}")
                             await websocket.send_json({
                                 "type": "agent_thinking",
-                                "message": f"Tool timed out, retrying ({attempt + 2}/{max_retries + 1})..."
+                                "message": f"{'Rate limited' if is_rate_limit else 'Tool timed out'}, retrying ({attempt + 2}/{max_retries + 1})..."
                             })
                             await asyncio.sleep(backoff)
                             continue
