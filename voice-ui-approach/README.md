@@ -4,58 +4,60 @@ A hands-free voice interface for operating rooms, built on Microsoft Foundry AI 
 
 ## Overview
 
-This approach provides two voice-controlled capabilities:
+This approach provides three voice-controlled capabilities:
 1. **OR Lighting Control** — adjust surgical/ambient lights, activate scene presets, and control individual fixtures via an MCP tool server
-2. **Browser Automation** — navigate websites, search, click elements, and more via Playwright MCP
+2. **Medical Device Control** — control a CO2 insufflator (pressure, flow rate, power) via an on-premises OpenAPI tool
+3. **Browser Automation** — navigate websites, search, click elements, and more via Playwright MCP
 
-Both are powered by a single Foundry agent that receives voice input and decides which tools to call.
+All are powered by a single Foundry agent that receives voice input and decides which tools to call.
 
 ## Features
 
 - 🎙️ **Voice Input**: Record and stream voice messages with real-time recognition
 - 🔊 **Voice Output**: Agent responds with natural synthesized speech
 - 💡 **OR Lighting Control**: Voice-controlled surgical and ambient lights with scene presets
-- 🏥 **Live OR Visualization**: Real-time light panel showing fixture states, zones, and active scene
+- 🫁 **Medical Device Control**: Voice-controlled CO2 insufflator with live pressure/flow gauges
+- 🏥 **Live OR Visualization**: Real-time light panel and device panel showing states in real time
 - 🌐 **Browser Automation**: Full browser control via Playwright (navigate, click, extract data)
 - 💬 **Chat Transcript**: Visual conversation history with timestamps
 - 🤖 **Auto-Approval**: MCP tool requests automatically approved for seamless execution
-- 📡 **WebSocket Streaming**: Real-time audio streaming for faster response
+- 📡 **WebSocket Streaming**: Real-time binary audio streaming for faster response
 - 🌍 **Multi-language**: Supports English and German voice commands
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│              Browser UI (index.html)                │
-│  ┌──────────────────┐  ┌────────────────┐           │
-│  │  Voice Chat      │  │  OR Light      │           │
-│  │  Panel           │  │  Visualization │           │
-│  └────────┬─────────┘  └───────▲────────┘           │
-│           │ WebSocket          │ Polling             │
-│           │ Audio              │ localhost:8932      │
-│           │                    │ /api/state          │
-└───────────┼────────────────────┼────────────────────┘
-            ↓                    │
-┌─────────────────────────────────────────────┐
-│           FastAPI Server (main.py)          │
-│           Port 8000                         │
-└────────┬────────────────────────────────────┘
-         │
-         ├──> Azure Speech
-         │    • STT / TTS (Opus output)
-         │
-         └──> Foundry Agent (cloud)
-              • GPT-4.1 model
-              • Auto-approves MCP tool calls
-              │
-              ├──────────────────────────────┐
-              ↓                              ↓
-     ┌──────────────────┐       ┌────────────────────┐
-     │ Playwright MCP   │       │  OR Lights MCP     │
-     │ Server :8931     │       │  Server :8932      │
-     │ (browser control)│       │  (lighting control)│
-     └──────────────────┘       └────────────────────┘
-              ↑ exposed via Dev Tunnel ↑
+┌──────────────────────────────────────────────────────────────────┐
+│                    Browser UI (index.html)                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌───────────────┐          │
+│  │  Voice Chat   │  │  OR Light    │  │  Device       │          │
+│  │  Panel        │  │  Panel       │  │  Panel        │          │
+│  └──────┬───────┘  └──────▲───────┘  └───────▲───────┘          │
+│         │ WebSocket        │ Polling          │ Polling          │
+│         │ Audio            │ :8932            │ :8933            │
+│         │                  │ /api/state       │ /api/devices/    │
+│         │                  │                  │ state            │
+└─────────┼──────────────────┼──────────────────┼─────────────────┘
+          ↓                  │                  │
+┌─────────────────────────────────────────────┐ │
+│           FastAPI Server (main.py)          │ │
+│           Port 8000                         │ │
+└────────┬────────────────────────────────────┘ │
+         │                                      │
+         ├──> Azure Speech                      │
+         │    • STT / TTS (binary Opus)         │
+         │                                      │
+         └──> Foundry Agent (cloud)             │
+              • GPT-4.1 model                   │
+              │                                 │
+              ├────────────────┬────────────────┐
+              ↓                ↓                ↓
+     ┌────────────────┐ ┌──────────────┐ ┌─────────────────┐
+     │ Playwright MCP │ │ OR Lights MCP│ │ OR Device API   │
+     │ Server :8931   │ │ Server :8932 │ │ Server :8933    │
+     │ (browser)      │ │ (lighting)   │ │ (insufflator)   │
+     └────────────────┘ └──────────────┘ └─────────────────┘
+              ↑ exposed via Dev Tunnel ↑            ↑
 ```
 
 ## Prerequisites
@@ -86,11 +88,12 @@ cd voice-ui-approach
 ./start.sh
 ```
 
-This starts all four services in sequence:
+This starts all five services in sequence:
 1. **OR Lights MCP Server** (port 8932) — lighting control tools
-2. **Playwright MCP Server** (port 8931) — browser automation tools
-3. **Dev Tunnel** — exposes both MCP servers to Foundry cloud
-4. **FastAPI Backend** (port 8000) — web UI, speech, agent communication
+2. **OR Device API Server** (port 8933) — medical device control (insufflator)
+3. **Playwright MCP Server** (port 8931) — browser automation tools
+4. **Dev Tunnel** — exposes MCP servers and device API to Foundry cloud
+5. **FastAPI Backend** (port 8000) — web UI, speech, agent communication
 
 Press `Ctrl+C` to stop all services.
 
@@ -139,7 +142,17 @@ python or_lights_mcp.py --port 8932
 
 This server exposes lighting control tools via Streamable HTTP transport. It persists light state to `.or_lights_state.json`.
 
-### 2. Start the Playwright MCP Server
+### 2. Start the OR Device API Server
+
+The device API simulates an on-premises CO2 insufflator controller:
+```bash
+python or_device_api.py --port 8933
+```
+
+This server exposes device control endpoints at `localhost:8933`. It persists state to `.or_devices_state.json`.
+Authentication is required for control endpoints (API key: `x-api-key` header or query parameter).
+
+### 3. Start the Playwright MCP Server
 
 The agent requires the Playwright MCP server for browser automation.
 
@@ -152,9 +165,6 @@ npx playwright install chromium
 npx playwright install-deps chromium
 ```
 
-### 3. Start the Playwright MCP Server
-
-The agent requires the Playwright MCP server for browser automation.
 ```bash
 npx @playwright/mcp@latest --port 8931 --host 0.0.0.0 --browser chromium --shared-browser-context
 ```
@@ -165,9 +175,9 @@ npx @playwright/mcp@latest --port 8931 --host 0.0.0.0 --browser chromium --share
 
 Keep this terminal running. The server listens on port 8931.
 
-### 4. Expose MCP Servers via Dev Tunnel
+### 4. Expose Services via Dev Tunnel
 
-Since the Foundry agent runs in the cloud, it needs access to your local MCP servers. Use a dev tunnel:
+Since the Foundry agent runs in the cloud, it needs access to your local MCP servers and device API. Use a dev tunnel:
 
 **First-time setup:**
 ```bash
@@ -177,9 +187,10 @@ devtunnel user login
 # Create tunnel
 devtunnel create playwright-mcp-tunnel -a
 
-# Create port mappings for both MCP servers
+# Create port mappings for MCP servers and device API
 devtunnel port create playwright-mcp-tunnel -p 8931
 devtunnel port create playwright-mcp-tunnel -p 8932
+devtunnel port create playwright-mcp-tunnel -p 8933
 ```
 
 **Start the tunnel** (in a separate terminal):
@@ -191,11 +202,13 @@ You'll see output with URLs like:
 ```
 https://kk13d7j6-8931.euw.devtunnels.ms   → Playwright MCP
 https://kk13d7j6-8932.euw.devtunnels.ms   → OR Lights MCP
+https://kk13d7j6-8933.euw.devtunnels.ms   → OR Device API
 ```
 
-**Configure in Foundry**: Add both MCP server URLs to your Microsoft Foundry agent:
-- Playwright MCP: `https://<tunnel>-8931.<region>.devtunnels.ms/sse`
-- OR Lights MCP: `https://<tunnel>-8932.<region>.devtunnels.ms/sse`
+**Configure in Foundry**:
+- **Playwright MCP**: Add as MCP tool with dev tunnel URL for port 8931 (SSE endpoint)
+- **OR Lights MCP**: Add as MCP tool with dev tunnel URL for port 8932 (SSE endpoint)
+- **OR Device API**: Add as OpenAPI tool with dev tunnel URL for port 8933 (uses `devices_openapi.json`)
 
 ### 5. Start the FastAPI Server
 
@@ -216,11 +229,14 @@ Navigate to `http://localhost:8000`
 - Proper URL and domain handling
 - Browser command understanding
 - OR lighting control with scene presets
+- Medical device control (insufflator)
+- Combined OR commands (e.g., "prepare for laparoscopy")
 - Cookie popup handling
 
-**In Foundry**, add both MCP servers:
+**In Foundry**, add all tool servers:
 - **Playwright MCP**: Use the dev tunnel URL for port 8931 (SSE endpoint)
 - **OR Lights MCP**: Use the dev tunnel URL for port 8932 (SSE endpoint)
+- **OR Device API**: Import `devices_openapi.json` as an OpenAPI tool, using the dev tunnel URL for port 8933
 
 **In the web UI:**
 - Enter your **Agent ID** (the name you gave your agent in Foundry)
@@ -243,24 +259,29 @@ For a full working setup, you need these running simultaneously:
   python or_lights_mcp.py --port 8932
   ```
 
-- [ ] **Terminal 2**: Playwright MCP Server
+- [ ] **Terminal 2**: OR Device API Server
+  ```bash
+  python or_device_api.py --port 8933
+  ```
+
+- [ ] **Terminal 3**: Playwright MCP Server
   ```bash
   npx @playwright/mcp@latest --port 8931 --host 0.0.0.0 --browser chromium --shared-browser-context
   ```
 
-- [ ] **Terminal 3**: Dev Tunnel (for both MCP servers)
+- [ ] **Terminal 4**: Dev Tunnel (for MCP servers + device API)
   ```bash
   devtunnel host playwright-mcp-tunnel
   ```
 
-- [ ] **Terminal 4**: FastAPI Backend
+- [ ] **Terminal 5**: FastAPI Backend
   ```bash
   python main.py
   ```
 
 - [ ] **Browser**: http://localhost:8000
 
-- [ ] **Foundry Agent**: Configured with dev tunnel URLs for both MCP servers
+- [ ] **Foundry Agent**: Configured with dev tunnel URLs for MCP servers and OpenAPI tool
 
 Or simply run `./start.sh` to start everything at once.
 
@@ -275,6 +296,16 @@ Or simply run `./start.sh` to start everything at once.
 - "Emergency lights"
 - "What's the current light status?"
 
+### Medical Device Control
+- "Turn on the insufflator"
+- "Set pressure to 14 mmHg"
+- "Set flow rate to 30 liters per minute"
+- "What's the insufflator status?"
+- "Turn off the insufflator"
+
+### Combined OR Commands
+- "Prepare for laparoscopy" (activates laparoscopy lighting scene + powers on insufflator with standard settings)
+
 ### Browser Automation
 - "Open a browser and navigate to Google"
 - "Search for cats"
@@ -282,7 +313,7 @@ Or simply run `./start.sh` to start everything at once.
 - "Go to GitHub.com"
 - "Open a new tab and go to Wikipedia"
 
-The agent will automatically approve and execute MCP tool calls to control lights and browser.
+The agent will automatically execute MCP tool calls to control lights, devices, and browser.
 
 ## How It Works
 
@@ -303,14 +334,12 @@ The agent will automatically approve and execute MCP tool calls to control light
 2. Audio synthesized as Opus
 3. Streamed back to browser for playback
 
-### MCP Auto-Approval
-The backend automatically:
-- Detects `mcp_approval_request` in agent responses
-- Sends `mcp_approval_response` with `approve=True`
-- Loops until all tools complete
-- Maintains conversation state via `previous_response_id`
+### Tool Execution
+The Foundry agent is configured with `require_approval: "never"` on all MCP tools, so tool calls execute immediately without approval round-trips. The backend maintains conversation state via `previous_response_id` and includes retry logic with exponential backoff for rate limits.
 
 ## API Endpoints
+
+### FastAPI Backend (port 8000)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -322,24 +351,36 @@ The backend automatically:
 | `/api/agent/thread/{id}` | DELETE | Clear conversation |
 | `/health` | GET | Health check |
 
+### OR Device API (port 8933)
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/devices/state` | GET | No | Get current device states |
+| `/api/devices/insufflator/power` | POST | Yes | Power on/off the insufflator |
+| `/api/devices/insufflator/settings` | POST | Yes | Set pressure and flow rate |
+
 ## Project Structure
 
 ```
 voice-ui-approach/
-├── main.py                  # FastAPI backend (speech, agent, light state API)
+├── main.py                  # FastAPI backend (speech, agent, config API)
 ├── or_lights_mcp.py         # OR Lights MCP server (Streamable HTTP transport)
-├── index.html               # Web interface (chat + OR light panel)
-├── app.js                   # Frontend JavaScript (voice + light visualization)
-├── start.sh                 # Auto-start script for all services
+├── or_device_api.py         # OR Device API server (insufflator control)
+├── devices_openapi.json     # OpenAPI spec for Foundry tool registration
+├── index.html               # Web interface (chat + OR light panel + device panel)
+├── app.js                   # Frontend JavaScript (voice + light + device visualization)
+├── start.sh                 # Auto-start script for all 5 services
 ├── requirements.txt         # Python dependencies
 ├── AGENT_SYSTEM_PROMPT.md   # Foundry agent system prompt
 ├── .env.example             # Environment template
 ├── .or_lights_state.json    # Light state (auto-generated, gitignored)
+├── .or_devices_state.json   # Device state (auto-generated, gitignored)
 ├── deploy.sh                # Azure Container Apps deployment script
 ├── Dockerfile               # Container image definition
 ├── .dockerignore             # Files excluded from Docker build
 ├── infra/
 │   └── main.bicep           # Azure infrastructure (Bicep)
+├── architecture.drawio       # Architecture diagram (draw.io)
 ├── utils/                   # Utility scripts
 │   ├── check_old_api_agents.py
 │   └── list_agents.py

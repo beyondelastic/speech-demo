@@ -141,6 +141,13 @@ class VoiceAgentInterface {
             };
             
             this.websocket.onmessage = (event) => {
+                // Binary frames are TTS audio
+                if (event.data instanceof Blob) {
+                    this.updateStatus('Agent speaking...', true);
+                    const audioUrl = URL.createObjectURL(event.data);
+                    this.queueAudioUrl(audioUrl);
+                    return;
+                }
                 const message = JSON.parse(event.data);
                 console.log('[WebSocket] Message:', message);
                 
@@ -554,7 +561,13 @@ class VoiceAgentInterface {
 
     queueAudio(base64Data) {
         if (!this._audioQueue) this._audioQueue = [];
-        this._audioQueue.push(base64Data);
+        this._audioQueue.push({ type: 'base64', data: base64Data });
+        if (!this._audioPlaying) this._playNextAudio();
+    }
+
+    queueAudioUrl(url) {
+        if (!this._audioQueue) this._audioQueue = [];
+        this._audioQueue.push({ type: 'url', data: url });
         if (!this._audioPlaying) this._playNextAudio();
     }
 
@@ -568,9 +581,18 @@ class VoiceAgentInterface {
             return;
         }
         this._audioPlaying = true;
-        const data = this._audioQueue.shift();
+        const item = this._audioQueue.shift();
         try {
-            await this.playAudioBase64(data);
+            if (item.type === 'url') {
+                const audio = new Audio(item.data);
+                await new Promise((resolve, reject) => {
+                    audio.onended = () => { URL.revokeObjectURL(item.data); resolve(); };
+                    audio.onerror = (e) => { URL.revokeObjectURL(item.data); reject(e); };
+                    audio.play();
+                });
+            } else {
+                await this.playAudioBase64(item.data);
+            }
             console.log('[TTS] Finished speaking segment');
         } catch (err) {
             console.error('[TTS] Error:', err);
@@ -623,6 +645,7 @@ class VoiceAgentInterface {
 document.addEventListener('DOMContentLoaded', () => {
     new VoiceAgentInterface();
     new ORLightPanel();
+    new ORDevicePanel();
 });
 
 
@@ -826,5 +849,90 @@ class ORLightPanel {
         }
 
         return { r: Math.round(r), g: Math.round(g), b: Math.round(b) };
+    }
+}
+
+
+// --- OR Device Panel ---
+
+class ORDevicePanel {
+    constructor() {
+        this.pollInterval = null;
+        this._lastStateStr = '';
+        this.startPolling();
+    }
+
+    startPolling() {
+        this.fetchState();
+        this.pollInterval = setInterval(() => this.fetchState(), 3000);
+    }
+
+    async fetchState() {
+        try {
+            const response = await fetch('http://localhost:8933/api/devices/state');
+            if (response.ok) {
+                const state = await response.json();
+                const stateStr = JSON.stringify(state);
+                if (stateStr !== this._lastStateStr) {
+                    this._lastStateStr = stateStr;
+                    this.render(state);
+                }
+            }
+        } catch (e) {
+            // Silently ignore — device API may not be running
+        }
+    }
+
+    render(state) {
+        const device = state.insufflator;
+        if (!device) return;
+
+        const isOn = device.power === 'ON';
+        const status = device.status;
+
+        // Status badge
+        const badge = document.getElementById('device-status-badge');
+        if (badge) {
+            badge.textContent = status;
+            badge.className = 'device-status-badge ' + status.toLowerCase();
+        }
+
+        // Pressure gauge
+        const pressureEl = document.getElementById('gauge-pressure');
+        if (pressureEl) {
+            pressureEl.textContent = device.actual_pressure_mmhg;
+            pressureEl.className = 'gauge-value' + (isOn ? ' active' : '');
+        }
+        const pressureBar = document.getElementById('gauge-pressure-bar');
+        if (pressureBar) {
+            pressureBar.style.width = `${(device.actual_pressure_mmhg / 20) * 100}%`;
+        }
+
+        // Flow rate gauge
+        const flowEl = document.getElementById('gauge-flow');
+        if (flowEl) {
+            flowEl.textContent = isOn ? device.flow_rate_lpm : 0;
+            flowEl.className = 'gauge-value' + (isOn ? ' active' : '');
+        }
+        const flowBar = document.getElementById('gauge-flow-bar');
+        if (flowBar) {
+            flowBar.style.width = isOn ? `${(device.flow_rate_lpm / 45) * 100}%` : '0%';
+        }
+
+        // Target gauge
+        const targetEl = document.getElementById('gauge-target');
+        if (targetEl) {
+            targetEl.textContent = device.target_pressure_mmhg;
+        }
+
+        // Power indicator
+        const powerDot = document.getElementById('device-power-dot');
+        if (powerDot) {
+            powerDot.className = 'power-dot' + (isOn ? ' on' : '');
+        }
+        const powerText = document.getElementById('device-power-text');
+        if (powerText) {
+            powerText.textContent = `Power: ${device.power}`;
+        }
     }
 }

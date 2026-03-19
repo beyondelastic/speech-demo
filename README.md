@@ -21,21 +21,23 @@ User Voice → Foundry Voice Agent → HTTP API Call → Local FastAPI → Brows
 - Minimal local dependencies
 
 ### 2. **Voice UI Approach** (`voice-ui-approach/`) ⭐ Recommended
-A complete web-based voice interface for operating rooms — surgeons and medical staff can control OR lighting and browse the web hands-free via voice commands.
+A complete web-based voice interface for operating rooms — surgeons and medical staff can control OR lighting, medical devices, and browse the web hands-free via voice commands.
 
 **Architecture:**
 ```
-Browser UI → Azure Speech (STT) → Local Backend → Foundry Agent ─┬→ OR Lights MCP → Lighting Control
-           ← Azure Speech (TTS) ←                                └→ Playwright MCP → Browser Control
+Browser UI → Azure Speech (STT) → Local Backend → Foundry Agent ─┬→ OR Lights MCP    → Lighting Control
+           ← Azure Speech (TTS) ←                                ├→ OR Device API    → Insufflator Control
+                                                                  └→ Playwright MCP   → Browser Control
 ```
 
 **Key Features:**
 - Hands-free OR lighting control with scene presets (surgery, laparoscopy, etc.)
-- Live OR visualization panel showing light states in real time
+- Medical device control (CO2 insufflator) with live pressure/flow gauges
+- Live OR visualization panels showing light and device states in real time
 - Rich web interface for voice interaction
 - Real-time speech-to-text and text-to-speech
 - Full browser automation via Playwright MCP
-- Automatic MCP tool approval for seamless execution
+- Automatic MCP tool execution (no approval round-trips)
 - Multi-language support (English/German)
 
 ## Quick Start
@@ -54,7 +56,7 @@ cd voice-ui-approach
 pip install -r requirements.txt
 # Configure .env with Foundry project details
 ./start.sh
-# Opens http://localhost:8000 — starts all 4 services automatically
+# Opens http://localhost:8000 — starts all 5 services automatically
 ```
 
 ## Project Structure
@@ -70,9 +72,11 @@ speech-demo/
 ├── voice-ui-approach/           # OR voice assistant (recommended)
 │   ├── main.py                  # FastAPI backend (speech, agent, config)
 │   ├── or_lights_mcp.py         # OR Lights MCP server (Streamable HTTP)
-│   ├── index.html               # Web UI (chat + OR light visualization)
+│   ├── or_device_api.py         # OR Device API server (insufflator)
+│   ├── devices_openapi.json     # OpenAPI spec for Foundry tool
+│   ├── index.html               # Web UI (chat + light panel + device panel)
 │   ├── app.js                   # Frontend logic
-│   ├── start.sh                 # Auto-start all services
+│   ├── start.sh                 # Auto-start all 5 services
 │   ├── deploy.sh                # Azure Container Apps deployment script
 │   ├── Dockerfile               # Container image definition
 │   ├── .dockerignore            # Files excluded from Docker build
@@ -95,7 +99,8 @@ speech-demo/
 | **Agent Location** | Cloud (Foundry) | Cloud (Foundry) |
 | **Browser Control** | Direct (webbrowser) | MCP Server (Playwright) |
 | **Lighting Control** | — | MCP Server (OR Lights) |
-| **UI** | None (API only) | Web-based (chat + OR panel) |
+| **Device Control** | — | OpenAPI Tool (Insufflator) |
+| **UI** | None (API only) | Web-based (chat + OR panels) |
 | **Complexity** | Low | Medium |
 | **Setup** | FastAPI + tunnel | FastAPI + Azure + MCP + tunnel |
 | **Use Case** | Simple URL opening | OR lighting + browser automation |

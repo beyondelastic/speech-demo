@@ -369,7 +369,7 @@ async def speech_stream_websocket(websocket: WebSocket):
         
         # Configure silence detection for auto-stop
         speech_config.set_property(
-            speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "700"
+            speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "500"
         )
         
         # Enable detailed recognition results for better accuracy
@@ -710,23 +710,20 @@ async def speech_stream_websocket(websocket: WebSocket):
                                 first_audio = await early_task
                                 remainder = full_text[len(early_text):].strip()
                                 if first_audio:
-                                    # Send first sentence audio immediately
-                                    audio_b64 = base64.b64encode(first_audio).decode('ascii')
-                                    await websocket.send_json({"type": "tts_audio", "audio": audio_b64})
+                                    # Send first sentence audio immediately as binary
+                                    await websocket.send_bytes(first_audio)
                                     print(f"[TTS] Sent first sentence ({len(first_audio)} bytes, {(time.time() - t_start)*1000:.0f}ms from start)")
                                     # Synthesize and send remainder if any
                                     if remainder:
                                         rest_audio = await loop.run_in_executor(None, _synthesize_speech, remainder, voice)
                                         if rest_audio:
-                                            rest_b64 = base64.b64encode(rest_audio).decode('ascii')
-                                            await websocket.send_json({"type": "tts_audio", "audio": rest_b64})
+                                            await websocket.send_bytes(rest_audio)
                                             print(f"[TTS] Sent remainder ({len(rest_audio)} bytes, {(time.time() - t_start)*1000:.0f}ms from start)")
                                     return
                             # Fallback: synthesize full text
                             audio_data = await loop.run_in_executor(None, _synthesize_speech, full_text, voice)
                             if audio_data:
-                                audio_b64 = base64.b64encode(audio_data).decode('ascii')
-                                await websocket.send_json({"type": "tts_audio", "audio": audio_b64})
+                                await websocket.send_bytes(audio_data)
                                 print(f"[TTS] Sent full ({len(audio_data)} bytes, {(time.time() - t_start)*1000:.0f}ms from start)")
                         except Exception as e:
                             if "close" not in str(e).lower():
@@ -749,28 +746,32 @@ async def speech_stream_websocket(websocket: WebSocket):
                     break
                 
                 # Brief wait for any trailing recognized events
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.1)
                 if user_text_parts:
                     full_text = " ".join(user_text_parts)
                     user_text_parts.clear()
                     silence_detected.clear()
                     
-                    # Stop current recognition (keep recognizer alive for reuse)
+                    # Stop recognition and start agent call in parallel
                     recognition_active = False
                     t_silence = time.time()
-                    try:
-                        speech_recognizer.stop_continuous_recognition()
-                    except Exception:
-                        pass
-                    print(f"[Timing] STT stop took {(time.time() - t_silence)*1000:.0f}ms")
+                    loop = asyncio.get_event_loop()
                     
                     # Determine TTS voice from STT-detected language
                     tts_voice = "de-DE-KatjaNeural" if detected_language.startswith("de") else "en-US-AriaNeural"
                     print(f"[TTS] Using voice {tts_voice} (STT detected: {detected_language})")
                     
-                    # Process with agent
+                    # Fire STT stop concurrently with agent processing
                     agent_id = config_msg.get("agentId")
+                    async def _stop_recognition():
+                        try:
+                            await loop.run_in_executor(None, speech_recognizer.stop_continuous_recognition)
+                        except Exception:
+                            pass
+                        print(f"[Timing] STT stop took {(time.time() - t_silence)*1000:.0f}ms")
+                    stop_task = asyncio.create_task(_stop_recognition())
                     await process_with_agent(full_text, agent_id, tts_voice)
+                    await stop_task  # Ensure stop completes before restarting
                     
                     # Restart recognition on the same recognizer (no reconnect)
                     restart_recognizer()

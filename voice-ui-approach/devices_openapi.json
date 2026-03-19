@@ -1,0 +1,163 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OR Medical Device Controller",
+    "description": "On-premises API for controlling operating room medical devices. Controls a CO2 insufflator used in laparoscopic surgery.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://kk13d7j6-8933.euw.devtunnels.ms",
+      "description": "On-premises device controller (via Dev Tunnel)"
+    }
+  ],
+  "paths": {
+    "/api/devices/state": {
+      "get": {
+        "summary": "Get device status",
+        "description": "Get the current status of all medical devices in the operating room. Returns each device's power state, pressure settings, flow rate, and operational status.",
+        "operationId": "get_device_state",
+        "responses": {
+          "200": {
+            "description": "Current device state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "insufflator": {
+                      "$ref": "#/components/schemas/DeviceState"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/devices/insufflator/power": {
+      "post": {
+        "summary": "Turn insufflator on or off",
+        "description": "Turn the CO2 insufflator on or off. When turned on, the insufflator begins pressurizing to the target pressure. When turned off, pressure returns to 0 and the device enters standby mode.",
+        "operationId": "set_insufflator_power",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["power"],
+                "properties": {
+                  "power": {
+                    "type": "boolean",
+                    "description": "true to turn on, false to turn off"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Power state updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "device": { "type": "string" },
+                    "action": { "type": "string" },
+                    "status": { "type": "string" },
+                    "actual_pressure_mmhg": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/devices/insufflator/settings": {
+      "post": {
+        "summary": "Adjust insufflator settings",
+        "description": "Adjust the CO2 insufflator settings. Standard pressure is 12-15 mmHg, standard flow rate is 15-20 L/min.",
+        "operationId": "set_insufflator_settings",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "target_pressure_mmhg": {
+                    "type": "integer",
+                    "minimum": 8,
+                    "maximum": 20,
+                    "description": "Target abdominal pressure in mmHg (8-20). Standard is 12-15 mmHg."
+                  },
+                  "flow_rate_lpm": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 45,
+                    "description": "CO2 flow rate in liters per minute (1-45). Standard is 15-20 L/min."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Settings updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "device": { "type": "string" },
+                    "changes": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "current_state": {
+                      "$ref": "#/components/schemas/DeviceState"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key"
+      }
+    },
+    "schemas": {
+      "DeviceState": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "model": { "type": "string" },
+          "power": { "type": "string", "enum": ["ON", "OFF"] },
+          "target_pressure_mmhg": { "type": "integer" },
+          "flow_rate_lpm": { "type": "integer" },
+          "actual_pressure_mmhg": { "type": "integer" },
+          "status": { "type": "string", "enum": ["STANDBY", "ACTIVE", "ALARM"] }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "apiKeyAuth": []
+    }
+  ]
+}

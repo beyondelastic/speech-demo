@@ -24,6 +24,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TUNNEL_NAME="playwright-mcp-tunnel"
 MCP_PORT=8931
 OR_LIGHTS_PORT=8932
+DEVICE_API_PORT=8933
 FASTAPI_PORT=8000
 
 # Parse --local-only flag (skip FastAPI when backend is in Azure)
@@ -102,7 +103,7 @@ npx playwright install chromium 2>/dev/null
 echo -e "${GREEN}[Preflight] Chromium ready.${NC}"
 
 # --- 1. Start OR Lights MCP Server ---
-echo -e "${CYAN}[1/4] Starting OR Lights MCP Server on port ${OR_LIGHTS_PORT}...${NC}"
+echo -e "${CYAN}[1/5] Starting OR Lights MCP Server on port ${OR_LIGHTS_PORT}...${NC}"
 cd "$SCRIPT_DIR"
 "$PYTHON_CMD" or_lights_mcp.py --port "$OR_LIGHTS_PORT" &
 PIDS+=($!)
@@ -113,10 +114,24 @@ if ! kill -0 "${PIDS[-1]}" 2>/dev/null; then
     cleanup
     exit 1
 fi
-echo -e "${GREEN}[1/4] OR Lights MCP Server running (PID ${PIDS[-1]}).${NC}"
+echo -e "${GREEN}[1/5] OR Lights MCP Server running (PID ${PIDS[-1]}).${NC}"
 
-# --- 2. Start Playwright MCP Server ---
-echo -e "${CYAN}[2/4] Starting Playwright MCP Server on port ${MCP_PORT}...${NC}"
+# --- 2. Start OR Device API Server ---
+echo -e "${CYAN}[2/5] Starting OR Device API Server on port ${DEVICE_API_PORT}...${NC}"
+cd "$SCRIPT_DIR"
+"$PYTHON_CMD" or_device_api.py --port "$DEVICE_API_PORT" &
+PIDS+=($!)
+sleep 2
+
+if ! kill -0 "${PIDS[-1]}" 2>/dev/null; then
+    echo -e "${RED}[Error] OR Device API Server failed to start.${NC}"
+    cleanup
+    exit 1
+fi
+echo -e "${GREEN}[2/5] OR Device API Server running (PID ${PIDS[-1]}).${NC}"
+
+# --- 3. Start Playwright MCP Server ---
+echo -e "${CYAN}[3/5] Starting Playwright MCP Server on port ${MCP_PORT}...${NC}"
 npx @playwright/mcp@latest --port "$MCP_PORT" --host 0.0.0.0 --browser chromium --shared-browser-context &
 PIDS+=($!)
 sleep 3
@@ -126,25 +141,27 @@ if ! kill -0 "${PIDS[-1]}" 2>/dev/null; then
     cleanup
     exit 1
 fi
-echo -e "${GREEN}[2/4] Playwright MCP Server running (PID ${PIDS[-1]}).${NC}"
+echo -e "${GREEN}[3/5] Playwright MCP Server running (PID ${PIDS[-1]}).${NC}"
 
-# --- 3. Start Dev Tunnel ---
-echo -e "${CYAN}[3/4] Setting up Dev Tunnel '${TUNNEL_NAME}'...${NC}"
+# --- 4. Start Dev Tunnel ---
+echo -e "${CYAN}[4/5] Setting up Dev Tunnel '${TUNNEL_NAME}'...${NC}"
 
 # Check if tunnel exists, create if not
 if ! devtunnel show "$TUNNEL_NAME" &>/dev/null; then
-    echo -e "${YELLOW}[3/4] Tunnel '${TUNNEL_NAME}' not found, creating...${NC}"
+    echo -e "${YELLOW}[4/5] Tunnel '${TUNNEL_NAME}' not found, creating...${NC}"
     devtunnel create "$TUNNEL_NAME" -a
     devtunnel port create "$TUNNEL_NAME" -p "$MCP_PORT"
-    echo -e "${GREEN}[3/4] Tunnel created.${NC}"
+    echo -e "${GREEN}[4/5] Tunnel created.${NC}"
 else
-    echo -e "${GREEN}[3/4] Tunnel '${TUNNEL_NAME}' already exists.${NC}"
+    echo -e "${GREEN}[4/5] Tunnel '${TUNNEL_NAME}' already exists.${NC}"
 fi
 
 # Add OR lights port to tunnel if not already configured
 devtunnel port create "$TUNNEL_NAME" -p "$OR_LIGHTS_PORT" 2>/dev/null || true
+# Add device API port to tunnel if not already configured
+devtunnel port create "$TUNNEL_NAME" -p "$DEVICE_API_PORT" 2>/dev/null || true
 
-echo -e "${CYAN}[3/4] Starting Dev Tunnel...${NC}"
+echo -e "${CYAN}[4/5] Starting Dev Tunnel...${NC}"
 devtunnel host "$TUNNEL_NAME" &
 PIDS+=($!)
 sleep 3
@@ -154,14 +171,14 @@ if ! kill -0 "${PIDS[-1]}" 2>/dev/null; then
     cleanup
     exit 1
 fi
-echo -e "${GREEN}[3/4] Dev Tunnel running (PID ${PIDS[-1]}).${NC}"
+echo -e "${GREEN}[4/5] Dev Tunnel running (PID ${PIDS[-1]}).${NC}"
 
-# --- 4. Start FastAPI Server (skip if --local-only) ---
+# --- 5. Start FastAPI Server (skip if --local-only) ---
 if [[ "$LOCAL_ONLY" == true ]]; then
-    echo -e "${YELLOW}[4/4] Skipping FastAPI server (--local-only mode, backend runs in Azure).${NC}"
-    TOTAL_STEPS=3
+    echo -e "${YELLOW}[5/5] Skipping FastAPI server (--local-only mode, backend runs in Azure).${NC}"
+    TOTAL_STEPS=4
 else
-    echo -e "${CYAN}[4/4] Starting FastAPI server on port ${FASTAPI_PORT}...${NC}"
+    echo -e "${CYAN}[5/5] Starting FastAPI server on port ${FASTAPI_PORT}...${NC}"
     cd "$SCRIPT_DIR"
     "$PYTHON_CMD" main.py &
     PIDS+=($!)
@@ -172,8 +189,8 @@ else
         cleanup
         exit 1
     fi
-    echo -e "${GREEN}[4/4] FastAPI server running (PID ${PIDS[-1]}).${NC}"
-    TOTAL_STEPS=4
+    echo -e "${GREEN}[5/5] FastAPI server running (PID ${PIDS[-1]}).${NC}"
+    TOTAL_STEPS=5
 fi
 
 # --- Ready ---
@@ -182,6 +199,7 @@ echo -e "${GREEN}=============================================${NC}"
 echo -e "${GREEN}  All services started successfully!${NC}"
 echo -e "${GREEN}=============================================${NC}"
 echo -e "  OR Lights MCP   : http://localhost:${OR_LIGHTS_PORT}"
+echo -e "  Device API      : http://localhost:${DEVICE_API_PORT}"
 echo -e "  Playwright MCP  : http://localhost:${MCP_PORT}"
 echo -e "  Dev Tunnel      : devtunnel host ${TUNNEL_NAME}"
 if [[ "$LOCAL_ONLY" == true ]]; then

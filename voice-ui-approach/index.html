@@ -29,6 +29,14 @@
             align-items: flex-start;
         }
 
+        .or-panels-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            flex: 1;
+            min-width: 500px;
+        }
+
         .container {
             background: white;
             border-radius: 20px;
@@ -196,8 +204,6 @@
             background: #111827;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            flex: 1;
-            min-width: 500px;
             overflow: hidden;
             color: #e5e7eb;
         }
@@ -419,6 +425,177 @@
 
         .light-detail-status .on { color: #6ee7b7; }
         .light-detail-status .off { color: #6b7280; }
+
+        /* --- Device Panel --- */
+        .device-panel {
+            background: #111827;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            color: #e5e7eb;
+        }
+
+        .device-header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #1a2744 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .device-header h2 {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+
+        .device-header p {
+            opacity: 0.8;
+            font-size: 12px;
+        }
+
+        .device-body {
+            padding: 24px;
+        }
+
+        .device-card {
+            background: #1f2937;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #374151;
+        }
+
+        .device-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .device-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #e5e7eb;
+        }
+
+        .device-model {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+
+        .device-status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .device-status-badge.standby {
+            background: #374151;
+            color: #9ca3af;
+        }
+
+        .device-status-badge.active {
+            background: #065f46;
+            color: #6ee7b7;
+        }
+
+        .device-status-badge.alarm {
+            background: #7f1d1d;
+            color: #fca5a5;
+            animation: pulse-alarm 1s infinite;
+        }
+
+        @keyframes pulse-alarm {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .device-gauges {
+            display: flex;
+            gap: 16px;
+            margin-top: 8px;
+        }
+
+        .device-gauge {
+            flex: 1;
+            background: #111827;
+            border-radius: 10px;
+            padding: 14px;
+            text-align: center;
+        }
+
+        .gauge-label {
+            font-size: 11px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .gauge-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #e5e7eb;
+            line-height: 1;
+        }
+
+        .gauge-value.active {
+            color: #34d399;
+        }
+
+        .gauge-unit {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+
+        .gauge-bar {
+            width: 100%;
+            height: 6px;
+            background: #374151;
+            border-radius: 3px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .gauge-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease, background 0.5s ease;
+        }
+
+        .gauge-bar-fill.pressure {
+            background: linear-gradient(90deg, #34d399, #059669);
+        }
+
+        .gauge-bar-fill.flow {
+            background: linear-gradient(90deg, #60a5fa, #3b82f6);
+        }
+
+        .device-power-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #374151;
+            font-size: 13px;
+            color: #9ca3af;
+        }
+
+        .power-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #374151;
+        }
+
+        .power-dot.on {
+            background: #34d399;
+            box-shadow: 0 0 8px rgba(52, 211, 153, 0.5);
+        }
     </style>
 </head>
 <body>
@@ -456,6 +633,8 @@
         </div>
     </div>
 
+    <!-- OR Panels Column -->
+    <div class="or-panels-column">
     <!-- OR Light Panel -->
     <div class="or-panel" id="orPanel">
         <div class="or-header">
@@ -520,6 +699,49 @@
             <!-- Populated by JS -->
         </div>
     </div>
+
+    <!-- Device Panel -->
+    <div class="device-panel" id="devicePanel">
+        <div class="device-header">
+            <h2>🔬 Medical Devices</h2>
+            <p>Equipment status &mdash; voice controlled</p>
+        </div>
+        <div class="device-body">
+            <div class="device-card" id="device-insufflator">
+                <div class="device-title-row">
+                    <div>
+                        <div class="device-name">CO2 Insufflator</div>
+                        <div class="device-model">CO2 Insufflator</div>
+                    </div>
+                    <span class="device-status-badge standby" id="device-status-badge">STANDBY</span>
+                </div>
+                <div class="device-gauges">
+                    <div class="device-gauge">
+                        <div class="gauge-label">Pressure</div>
+                        <div class="gauge-value" id="gauge-pressure">0</div>
+                        <div class="gauge-unit">mmHg</div>
+                        <div class="gauge-bar"><div class="gauge-bar-fill pressure" id="gauge-pressure-bar" style="width: 0%"></div></div>
+                    </div>
+                    <div class="device-gauge">
+                        <div class="gauge-label">Flow Rate</div>
+                        <div class="gauge-value" id="gauge-flow">0</div>
+                        <div class="gauge-unit">L/min</div>
+                        <div class="gauge-bar"><div class="gauge-bar-fill flow" id="gauge-flow-bar" style="width: 0%"></div></div>
+                    </div>
+                    <div class="device-gauge">
+                        <div class="gauge-label">Target</div>
+                        <div class="gauge-value" id="gauge-target">12</div>
+                        <div class="gauge-unit">mmHg</div>
+                    </div>
+                </div>
+                <div class="device-power-indicator">
+                    <span class="power-dot" id="device-power-dot"></span>
+                    <span id="device-power-text">Power: OFF</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div><!-- /or-panels-column -->
     </div><!-- /app-layout -->
 
     <script src="app.js"></script>
