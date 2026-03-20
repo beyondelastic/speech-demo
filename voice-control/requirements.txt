@@ -1,0 +1,8 @@
+openai>=1.30
+fastapi
+uvicorn[standard]
+azure-cognitiveservices-speech
+azure-identity
+httpx
+python-dotenv
+pydantic
