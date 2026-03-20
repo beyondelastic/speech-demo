@@ -1,10 +1,10 @@
 # Speech Demo - Voice-Controlled OR Assistant & Browser Automation
 
-Two different approaches for voice-controlled automation using Microsoft Foundry AI Agents.
+Three different approaches for voice-controlled automation in operating rooms.
 
 ## Overview
 
-This repository demonstrates two different architectures for hands-free voice control using Microsoft Foundry AI Agents:
+This repository demonstrates three architectures for hands-free voice control, progressing from cloud-based agents to ultra-low-latency direct API calls:
 
 ### 1. **Local API Approach** (`local-api-approach/`)
 A lightweight FastAPI server that exposes browser control capabilities to a cloud-based Microsoft Foundry voice agent via HTTP endpoints.
@@ -40,6 +40,27 @@ Browser UI → Azure Speech (STT) → Local Backend → Foundry Agent ─┬→ 
 - Automatic MCP tool execution (no approval round-trips)
 - Multi-language support (English/German)
 
+### 3. **Voice Control** (`voice-control/`) ⚡ Fastest
+Ultra-low-latency voice control for OR lights and endoscope video recording. Bypasses the Foundry Agent framework entirely — direct Azure OpenAI function calling for **595–765ms** end-to-end latency.
+
+**Architecture:**
+```
+Browser UI → WebSocket (PCM audio) → FastAPI Backend ─┬→ Azure Speech (streaming STT, 300ms silence)
+           ← Text + pre-cached TTS ←                  ├→ Azure OpenAI (GPT-4.1-nano, function calling)
+                                                       └→ REST dispatch → OR Lights API / Video API
+```
+
+**Key Features:**
+- Direct Azure OpenAI function calling (no Foundry Agent / MCP overhead)
+- GPT-4.1-nano for minimal LLM latency (~200–350ms)
+- Fast path: light-only commands skip 2nd LLM round-trip (~950ms total)
+- Wake word activation ("Computer")
+- Recording guard: code-level safety net strips spurious recording tool calls
+- 5 OR lights, 6 scenes, 4 color presets (light_blue, light_green, red, white)
+- Endoscope video recording & snapshots
+- Pre-cached TTS for video responses (~5ms vs ~300ms synthesis)
+- Bilingual (English / German)
+
 ## Quick Start
 
 ### Local API Approach
@@ -57,6 +78,15 @@ pip install -r requirements.txt
 # Configure .env with Foundry project details
 ./start.sh
 # Opens http://localhost:8000 — starts all 5 services automatically
+```
+
+### Voice Control (Recommended)
+```bash
+cd voice-control
+pip install -r requirements.txt
+# Configure .env with Azure OpenAI + Speech credentials
+./start.sh
+# Starts OR Lights API, Video API, Dev Tunnel, and FastAPI on http://localhost:8000
 ```
 
 ## Project Structure
@@ -87,37 +117,63 @@ speech-demo/
 │   ├── requirements.txt         # Full dependencies
 │   └── README.md                # Detailed documentation
 │
+├── voice-control/               # Ultra-low-latency OR assistant (fastest)
+│   ├── main.py                  # FastAPI backend (WebSocket STT, OpenAI function calling)
+│   ├── or_lights_api.py         # OR Lights REST API (port 8932)
+│   ├── video_api.py             # Endoscope Video REST API (port 8933)
+│   ├── index.html               # Web UI (voice chat + light panel + video panel)
+│   ├── app.js                   # Frontend (audio pipeline, WebSocket, polling)
+│   ├── SYSTEM_PROMPT.md         # LLM system prompt (bilingual)
+│   ├── start.sh                 # Auto-start all services + dev tunnel
+│   ├── architecture.drawio      # Architecture diagram (draw.io)
+│   ├── fine-tuning/             # GPT-4.1-nano fine-tuning dataset (198 examples)
+│   ├── .env.example             # Environment variable template
+│   ├── requirements.txt         # Dependencies
+│   └── README.md                # Detailed documentation
+│
 ├── docs/                        # Future improvement plans
 └── README.md                    # This file
 ```
 
 ## Comparison
 
-| Feature | Local API Approach | Voice UI Approach |
-|---------|-------------------|-------------------|
-| **Voice Processing** | Cloud (Foundry) | Local (Azure Speech) |
-| **Agent Location** | Cloud (Foundry) | Cloud (Foundry) |
-| **Browser Control** | Direct (webbrowser) | MCP Server (Playwright) |
-| **Lighting Control** | — | MCP Server (OR Lights) |
-| **Device Control** | — | OpenAPI Tool (Insufflator) |
-| **UI** | None (API only) | Web-based (chat + OR panels) |
-| **Complexity** | Low | Medium |
-| **Setup** | FastAPI + tunnel | FastAPI + Azure + MCP + tunnel |
-| **Use Case** | Simple URL opening | OR lighting + browser automation |
+| Feature | Local API Approach | Voice UI Approach | Voice Control |
+|---------|-------------------|-------------------|---------------|
+| **Voice Processing** | Cloud (Foundry) | Local (Azure Speech) | Local (Azure Speech) |
+| **Agent / LLM** | Cloud (Foundry Agent) | Cloud (Foundry Agent) | Direct Azure OpenAI |
+| **Model** | — | GPT-4.1 | GPT-4.1-nano |
+| **Browser Control** | Direct (webbrowser) | MCP Server (Playwright) | — |
+| **Lighting Control** | — | MCP Server (OR Lights) | REST API (direct) |
+| **Video Recording** | — | — | REST API (direct) |
+| **Device Control** | — | OpenAPI Tool (Insufflator) | — |
+| **UI** | None (API only) | Web-based (chat + OR panels) | Web-based (chat + light + video) |
+| **Complexity** | Low | Medium | Low |
+| **Latency** | Cloud-dependent | ~1.5–3s | **~595–765ms** |
+| **Setup** | FastAPI + tunnel | FastAPI + Azure + MCP + tunnel | FastAPI + Azure OpenAI + tunnel |
+| **Use Case** | Simple URL opening | OR lighting + browser automation | **OR lighting + video (fastest)** |
 
 ## Requirements
 
+**Common:**
 - Python 3.10+
-- Azure subscription with Foundry project
-- Agent configured with MCP servers (Playwright + OR Lights)
+- Azure subscription
+- Dev tunnel (`devtunnel` CLI)
+- Azure CLI (`az login`)
+
+**Voice UI Approach** (additional):
+- Foundry project with configured agent
+- MCP servers (Playwright + OR Lights)
 - Node.js and npm (for Playwright MCP server)
 - ffmpeg (for audio processing)
-- Dev tunnel (for exposing MCP servers to cloud)
-- Azure CLI (`az login`)
+
+**Voice Control** (additional):
+- Azure OpenAI resource with GPT-4.1-nano deployed
+- Azure Speech Service
 
 ## Documentation
 
-See [voice-ui-approach/README.md](voice-ui-approach/README.md) for detailed setup, configuration, and troubleshooting.
+- [voice-ui-approach/README.md](voice-ui-approach/README.md) — Detailed setup, configuration, and troubleshooting
+- [voice-control/README.md](voice-control/README.md) — Ultra-low-latency voice control setup and features
 
 ## Example Usage
 
@@ -139,12 +195,21 @@ All MCP tool calls are automatically approved — no manual intervention needed.
 
 ## Architecture
 
+**Voice UI Approach:**
 - **Frontend**: Vanilla JS with MediaRecorder API + OR Light visualization panel
 - **Backend**: FastAPI with Azure AI SDK
 - **Speech**: Azure Speech Services (STT/TTS)
 - **Agent**: Microsoft Foundry with GPT-4o
 - **Tools**: Playwright MCP (browser) + OR Lights MCP (lighting)
 - **Transport**: SSE for MCP, WebSocket for audio streaming
+
+**Voice Control:**
+- **Frontend**: Vanilla JS with WebSocket audio pipeline + OR Light + Video panels
+- **Backend**: FastAPI with direct Azure OpenAI (AsyncAzureOpenAI)
+- **Speech**: Azure Speech SDK (streaming STT, 300ms silence timeout)
+- **LLM**: GPT-4.1-nano with function calling (no agent framework)
+- **Tools**: 7 tools (get_lights, set_light, set_zone, activate_scene, start/stop_recording, take_snapshot)
+- **Transport**: WebSocket for audio, REST for device APIs
 
 ## License
 
