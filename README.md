@@ -1,6 +1,6 @@
 # Speech Demo - Voice-Controlled OR Assistant & Browser Automation
 
-Three different approaches for voice-controlled automation in operating rooms.
+Four different approaches for voice-controlled automation in operating rooms.
 
 ## Overview
 
@@ -61,6 +61,26 @@ Browser UI → WebSocket (PCM audio) → FastAPI Backend ─┬→ Azure Speech 
 - Pre-cached TTS for video responses (~5ms vs ~300ms synthesis)
 - Bilingual (English / German)
 
+### 4. **Local Voice Control** (`local-voice-control/`) 🏠 Edge/Offline
+Same functionality as Voice Control but runs LLM inference **locally** using Foundry Local (Phi-4-mini). Azure Speech containers handle STT/TTS on-device (connected mode for billing only). No cloud LLM dependency.
+
+**Architecture:**
+```
+Browser UI → WebSocket (PCM audio) → FastAPI Backend ─┬→ Azure Speech Container (STT, port 5000)
+           ← Text + pre-cached TTS ←                  ├→ Foundry Local (Phi-4-mini, function calling)
+                                                       ├→ Azure Speech Container (TTS, port 5001)
+                                                       └→ REST dispatch → OR Lights API / Video API
+```
+
+**Key Features:**
+- Fully local LLM inference via Foundry Local SDK (Phi-4-mini on CPU or GPU)
+- Azure Speech containers for STT/TTS (only billing requires internet)
+- OpenAI-compatible API served by `llm_server.py` on port 5273
+- Same tool-calling pipeline as cloud version (7 tools)
+- Wake word activation ("Computer")
+- Bilingual (English / German)
+- ~25s latency on CPU; ~1–3s with NVIDIA Jetson GPU
+
 ## Quick Start
 
 ### Local API Approach
@@ -80,13 +100,28 @@ pip install -r requirements.txt
 # Opens http://localhost:8000 — starts all 5 services automatically
 ```
 
-### Voice Control (Recommended)
+### Voice Control (Recommended for cloud)
 ```bash
 cd voice-control
 pip install -r requirements.txt
 # Configure .env with Azure OpenAI + Speech credentials
 ./start.sh
 # Starts OR Lights API, Video API, Dev Tunnel, and FastAPI on http://localhost:8000
+```
+
+### Local Voice Control (Fully local inference)
+```bash
+cd local-voice-control
+source ../.venv/bin/activate
+# 1. Start speech containers
+docker compose up -d
+# 2. Start LLM server
+python llm_server.py --port 5273
+# 3. In another terminal: start device APIs + main app
+python or_lights_api.py --port 8932 &
+python video_api.py --port 8933 &
+python main.py
+# Open http://localhost:8000
 ```
 
 ## Project Structure
@@ -131,26 +166,41 @@ speech-demo/
 │   ├── requirements.txt         # Dependencies
 │   └── README.md                # Detailed documentation
 │
+├── local-voice-control/         # Edge/offline OR assistant (Foundry Local)
+│   ├── main.py                  # FastAPI backend (WebSocket STT, local LLM)
+│   ├── llm_server.py            # Foundry Local SDK → OpenAI-compatible API
+│   ├── docker-compose.yml       # Azure Speech containers (STT + TTS)
+│   ├── or_lights_api.py         # OR Lights REST API (port 8932)
+│   ├── video_api.py             # Endoscope Video REST API (port 8933)
+│   ├── index.html               # Web UI (voice chat + light panel + video panel)
+│   ├── app.js                   # Frontend (audio pipeline, WebSocket, polling)
+│   ├── SYSTEM_PROMPT.md         # LLM system prompt (bilingual)
+│   ├── start.sh                 # Auto-start all services
+│   ├── .env.example             # Environment variable template
+│   ├── requirements.txt         # Dependencies
+│   └── README.md                # Startup guide and configuration
+│
 ├── docs/                        # Future improvement plans
 └── README.md                    # This file
 ```
 
 ## Comparison
 
-| Feature | Local API Approach | Voice UI Approach | Voice Control |
-|---------|-------------------|-------------------|---------------|
-| **Voice Processing** | Cloud (Foundry) | Local (Azure Speech) | Local (Azure Speech) |
-| **Agent / LLM** | Cloud (Foundry Agent) | Cloud (Foundry Agent) | Direct Azure OpenAI |
-| **Model** | — | GPT-4.1 | GPT-4.1-nano |
-| **Browser Control** | Direct (webbrowser) | MCP Server (Playwright) | — |
-| **Lighting Control** | — | MCP Server (OR Lights) | REST API (direct) |
-| **Video Recording** | — | — | REST API (direct) |
-| **Device Control** | — | OpenAPI Tool (Insufflator) | — |
-| **UI** | None (API only) | Web-based (chat + OR panels) | Web-based (chat + light + video) |
-| **Complexity** | Low | Medium | Low |
-| **Latency** | Cloud-dependent | ~1.5–3s | **~595–765ms** |
-| **Setup** | FastAPI + tunnel | FastAPI + Azure + MCP + tunnel | FastAPI + Azure OpenAI + tunnel |
-| **Use Case** | Simple URL opening | OR lighting + browser automation | **OR lighting + video (fastest)** |
+| Feature | Local API Approach | Voice UI Approach | Voice Control | Local Voice Control |
+|---------|-------------------|-------------------|---------------|---------------------|
+| **Voice Processing** | Cloud (Foundry) | Local (Azure Speech) | Local (Azure Speech) | Local (Speech container) |
+| **Agent / LLM** | Cloud (Foundry Agent) | Cloud (Foundry Agent) | Direct Azure OpenAI | Local (Foundry Local) |
+| **Model** | — | GPT-4.1 | GPT-4.1-nano | Phi-4-mini |
+| **Browser Control** | Direct (webbrowser) | MCP Server (Playwright) | — | — |
+| **Lighting Control** | — | MCP Server (OR Lights) | REST API (direct) | REST API (direct) |
+| **Video Recording** | — | — | REST API (direct) | REST API (direct) |
+| **Device Control** | — | OpenAPI Tool (Insufflator) | — | — |
+| **UI** | None (API only) | Web-based (chat + OR panels) | Web-based (chat + light + video) | Web-based (chat + light + video) |
+| **Complexity** | Low | Medium | Low | Medium |
+| **Latency** | Cloud-dependent | ~1.5–3s | **~595–765ms** | ~25s (CPU) / ~1–3s (GPU) |
+| **Internet Required** | Yes | Yes | Yes | Billing only |
+| **Setup** | FastAPI + tunnel | FastAPI + Azure + MCP + tunnel | FastAPI + Azure OpenAI + tunnel | Docker + Foundry Local SDK |
+| **Use Case** | Simple URL opening | OR lighting + browser automation | **OR lighting + video (fastest)** | **Edge deployment / air-gapped** |
 
 ## Requirements
 
@@ -170,10 +220,16 @@ speech-demo/
 - Azure OpenAI resource with GPT-4.1-nano deployed
 - Azure Speech Service
 
+**Local Voice Control** (additional):
+- Docker (for Azure Speech containers)
+- Foundry Local SDK (`pip install foundry-local-sdk`)
+- Azure Speech resource (S0 tier, for container billing)
+
 ## Documentation
 
 - [voice-ui-approach/README.md](voice-ui-approach/README.md) — Detailed setup, configuration, and troubleshooting
 - [voice-control/README.md](voice-control/README.md) — Ultra-low-latency voice control setup and features
+- [local-voice-control/README.md](local-voice-control/README.md) — Edge deployment with Foundry Local + Speech containers
 
 ## Example Usage
 
@@ -209,6 +265,14 @@ All MCP tool calls are automatically approved — no manual intervention needed.
 - **Speech**: Azure Speech SDK (streaming STT, 300ms silence timeout)
 - **LLM**: GPT-4.1-nano with function calling (no agent framework)
 - **Tools**: 7 tools (get_lights, set_light, set_zone, activate_scene, start/stop_recording, take_snapshot)
+- **Transport**: WebSocket for audio, REST for device APIs
+
+**Local Voice Control:**
+- **Frontend**: Vanilla JS with WebSocket audio pipeline + OR Light + Video panels
+- **Backend**: FastAPI with OpenAI SDK pointing to local Foundry server
+- **Speech**: Azure Speech containers (STT on port 5000, TTS on port 5001)
+- **LLM**: Phi-4-mini via Foundry Local SDK (CPU or GPU, OpenAI-compatible API)
+- **Tools**: 7 tools (same as Voice Control, tool_choice="required" strategy)
 - **Transport**: WebSocket for audio, REST for device APIs
 
 ## License
