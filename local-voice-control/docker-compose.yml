@@ -1,0 +1,26 @@
+# Azure Speech Container (connected mode — requires internet for billing)
+# Docs: https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-container-stt
+#
+# Replace SPEECH_KEY and SPEECH_REGION with your Azure Speech resource credentials.
+# The container provides STT and TTS locally but needs periodic billing connectivity.
+
+services:
+  speech-to-text:
+    image: mcr.microsoft.com/azure-cognitive-services/speechservices/speech-to-text:latest
+    ports:
+      - "5000:5000"
+    environment:
+      - Eula=accept
+      - Billing=https://${SPEECH_REGION}.api.cognitive.microsoft.com/
+      - ApiKey=${SPEECH_KEY}
+    restart: unless-stopped
+
+  speech-synthesis:
+    image: mcr.microsoft.com/azure-cognitive-services/speechservices/neural-text-to-speech:latest
+    ports:
+      - "5001:5000"
+    environment:
+      - Eula=accept
+      - Billing=https://${SPEECH_REGION}.api.cognitive.microsoft.com/
+      - ApiKey=${SPEECH_KEY}
+    restart: unless-stopped
